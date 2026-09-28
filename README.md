@@ -1,5 +1,11 @@
 # React + TypeScript + Vite
 
+## Banco MySQL na Hostinger
+
+O schema está em [lgrp_mysql.sql](lgrp_mysql.sql). Importe-o no phpMyAdmin da Hostinger e configure as variáveis do backend a partir de `.env.example`.
+
+As APIs em `api/` usam MySQL/MariaDB por meio de `mysql2`. O login ainda pode validar o token pelo Supabase durante a transição; para isso, mantenha `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY` configuradas. A chave `SUPABASE_SERVICE_ROLE_KEY` não deve ser publicada.
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:
