@@ -1,7 +1,9 @@
 import supabase from './db-client.js';
+import { escapeLike, toSqlDate, withTransaction } from './db-client.js';
+import { exigirAuth, exigirEdicao, exigirAdmin, HttpError, responderErro } from './authz.js';
 
 /* ------------------------------------------------------------------ */
-/* CORS + auth helpers                                                 */
+/* CORS                                                               */
 /* ------------------------------------------------------------------ */
 
 export function setCORS(req, res) {
@@ -15,38 +17,13 @@ export function setCORS(req, res) {
   return false;
 }
 
+/** Usuário da requisição. Lança 401 se não houver sessão válida. */
 export async function currentUser(req) {
-  const raw = req.headers?.authorization || '';
-  const token = raw.replace(/^Bearer\s+/i, '');
-  const fallback = { nome: 'Sistema LGRP', email: 'sistema@lgrp.edu.br', papel: 'Sistema' };
-  if (!token) return fallback;
-  try {
-    const { data } = await supabase.auth.getUser(token);
-    const email = data?.user?.email || '';
-    if (!email) return fallback;
-    const { data: rows } = await supabase
-      .from('usuarios')
-      .select('*')
-      .eq('email', email)
-      .limit(1);
-    const u = rows && rows[0];
-    const nomeMeta =
-      data?.user?.user_metadata?.full_name || data?.user?.user_metadata?.name || '';
-    return {
-      id: u?.id ?? null,
-      nome: u?.nome || nomeMeta || email.split('@')[0],
-      email,
-      papel: u?.papel || 'Consultor',
-      setor: u?.setor || '',
-    };
-  } catch (e) {
-    console.error('currentUser error', e);
-    return fallback;
-  }
+  return exigirAuth(req);
 }
 
 /* ------------------------------------------------------------------ */
-/* Trilha de auditoria (histórico de alterações)                       */
+/* Trilha de auditoria                                                 */
 /* ------------------------------------------------------------------ */
 
 export async function registrarHistorico({
@@ -61,18 +38,19 @@ export async function registrarHistorico({
   mudancas = null,
 }) {
   try {
-    await supabase.from('historico').insert({
+    const { error } = await supabase.from('historico').insert({
       tabela,
       registro_id: String(registroId ?? ''),
       registro_codigo: codigo || `#${registroId ?? ''}`,
       acao,
-      descricao: descricao || `${acao} em ${tabela}`,
+      descricao: String(descricao || `${acao} em ${tabela}`).slice(0, 500),
       usuario: usuario?.nome || 'Sistema LGRP',
       usuario_email: usuario?.email || '',
       dados_anteriores: limpar(antes),
       dados_novos: limpar(depois),
       mudancas: mudancas || null,
     });
+    if (error) console.error('registrarHistorico error', error);
   } catch (e) {
     console.error('registrarHistorico error', e);
   }
@@ -101,50 +79,81 @@ export function diffCampos(antes, depois, campos) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Numeração automática de documentos                                  */
+/* Numeração automática de documentos                                 */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Gera o próximo código sequencial (ex.: PED-2026-0007).
+ *
+ * Roda em transação com `SELECT ... FOR UPDATE`, evitando que duas requisições
+ * simultâneas gerem o mesmo código (o índice único de `codigo` transformaria
+ * isso em erro 500).
+ */
 export async function proximoCodigo(tabela, prefixo, campo = 'codigo') {
   const ano = new Date().getFullYear();
+  // `prefixo` e `campo` vêm do código (nunca do usuário) e o padrão já
+  // contém o curinga desejado — escapar aqui o transformaria em literal.
   const padrao = `${prefixo}-${ano}-%`;
-  const { data } = await supabase
-    .from(tabela)
-    .select(campo)
-    .like(campo, padrao)
-    .order('id', { ascending: false })
-    .limit(1);
-  let n = 1;
-  const ultimo = data && data[0] && data[0][campo];
-  if (ultimo) {
-    const partes = String(ultimo).split('-');
-    const num = parseInt(partes[partes.length - 1], 10);
-    if (!Number.isNaN(num)) n = num + 1;
-  }
-  return `${prefixo}-${ano}-${String(n).padStart(4, '0')}`;
+
+  return withTransaction(async (conn) => {
+    const [ultimos] = await conn.query(
+      `SELECT \`${campo}\` AS \`v\` FROM \`${tabela}\` WHERE \`${campo}\` LIKE ? ORDER BY \`id\` DESC LIMIT 1 FOR UPDATE`,
+      [padrao]
+    );
+
+    let n = 1;
+    const ultimo = ultimos[0] && ultimos[0].v;
+    if (ultimo) {
+      const partes = String(ultimo).split('-');
+      const num = parseInt(partes[partes.length - 1], 10);
+      if (!Number.isNaN(num) && num > 0) n = num + 1;
+    }
+    return `${prefixo}-${ano}-${String(n).padStart(4, '0')}`;
+  });
 }
 
 /* ------------------------------------------------------------------ */
-/* Motor de alertas automáticos                                        */
+/* Motor de alertas automáticos                                       */
 /* ------------------------------------------------------------------ */
 
 const DIAS = 86400000;
+const ALERTA_INTERVALO_MS = 5 * 60 * 1000;
+let ultimoGeramento = 0;
+let alertasEmCurso = null;
 
-export async function gerarAlertas() {
+/**
+ * Gera os alertas de vencimento/estoque.
+ *
+ * Era executado a cada GET de notificações e do dashboard, o que significava
+ * seis consultas de 1000 linhas por página aberta. O resultado é memorizado
+ * por 5 minutos — os alertas derivam de dados que mudam esporadicamente.
+ */
+export async function gerarAlertas({ forcar = false } = {}) {
+  const agora = Date.now();
+  if (!forcar && agora - ultimoGeramento < ALERTA_INTERVALO_MS) return 0;
+  if (alertasEmCurso) return alertasEmCurso;
+
+  alertasEmCurso = gerarAlertasInterno()
+    .catch((e) => {
+      console.error('gerarAlertas error', e);
+      return 0;
+    })
+    .finally(() => {
+      ultimoGeramento = Date.now();
+      alertasEmCurso = null;
+    });
+
+  return alertasEmCurso;
+}
+
+async function gerarAlertasInterno() {
   const hoje = new Date();
   const iso = hoje.toISOString();
   const em30 = new Date(hoje.getTime() + 30 * DIAS).toISOString();
-  const em7 = new Date(hoje.getTime() + 7 * DIAS).toISOString();
   const ha7 = new Date(hoje.getTime() - 7 * DIAS).toISOString();
   const ha30 = new Date(hoje.getTime() - 30 * DIAS).toISOString();
 
-  const [
-    { data: existentes },
-    { data: reagentes },
-    { data: solventes },
-    { data: pedidos },
-    { data: vidrarias },
-    { data: tratamentos },
-  ] = await Promise.all([
+  const [existentes, reagentes, solventes, pedidos, vidrarias, tratamentos] = await Promise.all([
     supabase.from('notificacoes').select('tipo,origem,origem_id').eq('lida', false).limit(1000),
     supabase.from('reagentes').select('id,codigo,nome,data_validade,laboratorio').limit(1000),
     supabase
@@ -157,16 +166,13 @@ export async function gerarAlertas() {
       .limit(1000),
     supabase
       .from('vidrarias')
-      .select('id,codigo,tipo,laboratorio,nivel_contaminacao,status,contaminante')
+      .select('id,codigo,tipo,laboratorio,nivel_contaminacao,status,contaminante,quantidade')
       .limit(1000),
-    supabase
-      .from('tratamentos')
-      .select('id,codigo,residuo,metodo,status,data_inicio')
-      .limit(1000),
+    supabase.from('tratamentos').select('id,codigo,residuo,metodo,status,data_inicio').limit(1000),
   ]);
 
   const chave = (t, o, i) => `${t}|${o}|${i}`;
-  const jaExiste = new Set((existentes || []).map((n) => chave(n.tipo, n.origem, n.origem_id)));
+  const jaExiste = new Set((existentes.data || []).map((n) => chave(n.tipo, n.origem, n.origem_id)));
   const novas = [];
 
   const push = (n) => {
@@ -176,7 +182,10 @@ export async function gerarAlertas() {
     novas.push(n);
   };
 
-  for (const r of reagentes || []) {
+  // `data_validade` chega como ISO ('...Z') graças à hidratação do db-client.
+  // A comparação com `iso` abaixo depende disso: com objetos Date, o teste
+  // seria sempre falso e nenhum alerta apareceria.
+  for (const r of reagentes.data || []) {
     if (!r.data_validade) continue;
     if (r.data_validade < iso) {
       push({
@@ -185,7 +194,9 @@ export async function gerarAlertas() {
         titulo: `Reagente vencido: ${r.nome}`,
         mensagem: `O reagente ${r.nome} (${r.codigo || 'sem código'}) do laboratório ${
           r.laboratorio || '—'
-        } está vencido desde ${new Date(r.data_validade).toLocaleDateString('pt-BR')}. Segregar e solicitar coleta imediata.`,
+        } está vencido desde ${new Date(r.data_validade).toLocaleDateString(
+          'pt-BR'
+        )}. Segregar e solicitar coleta imediata.`,
         origem: 'reagentes',
         origem_id: String(r.id),
       });
@@ -204,7 +215,7 @@ export async function gerarAlertas() {
     }
   }
 
-  for (const s of solventes || []) {
+  for (const s of solventes.data || []) {
     const total = Number(s.volume_total_l || 0);
     const rest = Number(s.volume_restante_l || 0);
     if (s.data_validade && s.data_validade < iso) {
@@ -231,7 +242,7 @@ export async function gerarAlertas() {
     }
   }
 
-  for (const p of pedidos || []) {
+  for (const p of pedidos.data || []) {
     const aberto = ['Solicitado', 'Agendado'].includes(p.status);
     if (aberto && p.data_prevista && p.data_prevista < iso) {
       push({
@@ -266,7 +277,7 @@ export async function gerarAlertas() {
     }
   }
 
-  for (const v of vidrarias || []) {
+  for (const v of vidrarias.data || []) {
     if (v.status === 'Aguardando Descontaminação' && v.nivel_contaminacao === 'Crítico') {
       push({
         tipo: 'Contaminação crítica',
@@ -281,7 +292,7 @@ export async function gerarAlertas() {
     }
   }
 
-  for (const t of tratamentos || []) {
+  for (const t of tratamentos.data || []) {
     if (t.status === 'Em Andamento' && t.data_inicio && t.data_inicio < ha30) {
       push({
         tipo: 'Tratamento prolongado',
@@ -304,7 +315,7 @@ export async function gerarAlertas() {
 }
 
 /* ------------------------------------------------------------------ */
-/* Fábrica de rotas CRUD com auditoria automática                      */
+/* Fábrica de rotas CRUD com auditoria automática                     */
 /* ------------------------------------------------------------------ */
 
 function pick(obj, campos) {
@@ -315,10 +326,32 @@ function pick(obj, campos) {
   return out;
 }
 
+/** Datas de filtro (`de`/`ate`) chegam como ISO e viram literal MySQL. */
 function normDate(v) {
-  if (!v) return v;
-  if (typeof v === 'string' && v.length === 10) return v;
-  return v;
+  return v ? toSqlDate(v) : v;
+}
+
+/** Monta o filtro textual (`campo.ilike.%termo%`) com escaping correto. */
+function filtroBusca(searchable, termo) {
+  const limpo = String(termo)
+    .replace(/[,()]/g, ' ')
+    .trim();
+  if (!limpo || !searchable.length) return null;
+  return searchable.map((c) => `${c}.ilike.%${escapeLike(limpo)}%`).join(',');
+}
+
+/**
+ * Executa um hook de validação, convertendo `Error` comum em `HttpError(400)`.
+ * Sem isto, uma regra de negócio violada (e-mail inválido, perfil
+ * desconhecido) apareceria como 500 — falha do servidor — em vez de 400.
+ */
+async function validarRegra(fn) {
+  try {
+    await fn();
+  } catch (e) {
+    if (e instanceof HttpError) throw e;
+    throw new HttpError(400, e?.message || 'Dados inválidos.');
+  }
 }
 
 export function makeCrud(opts) {
@@ -336,12 +369,21 @@ export function makeCrud(opts) {
     beforeInsert = null,
     beforeUpdate = null,
     afterWrite = null,
+    // 'edicao' -> perfis com permissão de escrita (padrão)
+    // 'admin'  -> apenas Administradores
+    permissaoEscrita = 'edicao',
+    sanitize = null,
   } = opts;
 
   return async function handler(req, res) {
     if (setCORS(req, res)) return;
     try {
       const user = await currentUser(req);
+
+      if (req.method !== 'GET') {
+        if (permissaoEscrita === 'admin') exigirAdmin(user);
+        else exigirEdicao(user);
+      }
 
       /* ------------------------------ GET */
       if (req.method === 'GET') {
@@ -353,23 +395,20 @@ export function makeCrud(opts) {
           }
         }
         if (req.query.pedido_id) q = q.eq('pedido_id', req.query.pedido_id);
-        if (req.query.busca && searchable.length) {
-          const termo = String(req.query.busca).replace(/[,()%]/g, ' ').trim();
-          if (termo) {
-            q = q.or(searchable.map((c) => `${c}.ilike.%${termo}%`).join(','));
-          }
+        if (req.query.busca) {
+          const expressao = filtroBusca(searchable, req.query.busca);
+          if (expressao) q = q.or(expressao);
         }
         if (req.query.de) q = q.gte(campoData, normDate(req.query.de));
         if (req.query.ate) {
           const ate = String(req.query.ate);
           q = q.lte(campoData, ate.length === 10 ? `${ate}T23:59:59.999Z` : ate);
         }
-        const { data, error } = await q
-          .order(ordenarPor, { ascending: ascendente })
-          .limit(3000);
+        const { data, error } = await q.order(ordenarPor, { ascending: ascendente }).limit(3000);
         if (error) throw error;
         let rows = data || [];
         if (transform) rows = rows.map(transform);
+        if (sanitize) rows = rows.map(sanitize);
         return res.status(200).json(rows);
       }
 
@@ -378,8 +417,12 @@ export function makeCrud(opts) {
         const bruto = req.body || {};
         const body = pick(bruto, campos);
         if (prefixo && !body.codigo) body.codigo = await proximoCodigo(tabela, prefixo);
-        if (beforeInsert) await beforeInsert(body, bruto, user);
-        const { data, error } = await supabase.from(tabela).insert(body).select('*').single();
+        if (beforeInsert) await validarRegra(() => beforeInsert(body, bruto, user));
+        const { data, error } = await supabase
+          .from(tabela)
+          .insert(body)
+          .select('*')
+          .single();
         if (error) throw error;
         await registrarHistorico({
           tabela,
@@ -392,7 +435,8 @@ export function makeCrud(opts) {
           depois: data,
         });
         if (afterWrite) await afterWrite('POST', data, null, user);
-        return res.status(201).json(transform ? transform(data) : data);
+        const saida = transform ? transform(data) : data;
+        return res.status(201).json(sanitize ? sanitize(saida) : saida);
       }
 
       /* ------------------------------ PUT */
@@ -400,10 +444,15 @@ export function makeCrud(opts) {
         const bruto = req.body || {};
         const id = bruto.id ?? req.query.id;
         if (!id) return res.status(400).json({ error: 'Campo "id" é obrigatório.' });
-        const { data: antes } = await supabase.from(tabela).select('*').eq('id', id).single();
-        if (!antes) return res.status(404).json({ error: 'Registro não encontrado.' });
+        const { data: antes } = await supabase
+          .from(tabela)
+          .select('*')
+          .eq('id', id)
+          .limit(1);
+        const registro = antes && antes[0];
+        if (!registro) return res.status(404).json({ error: 'Registro não encontrado.' });
         const body = pick(bruto, campos);
-        if (beforeUpdate) await beforeUpdate(body, bruto, antes, user);
+        if (beforeUpdate) await validarRegra(() => beforeUpdate(body, bruto, registro, user));
         if (temAtualizadoEm) body.atualizado_em = new Date().toISOString();
         const { data, error } = await supabase
           .from(tabela)
@@ -412,7 +461,7 @@ export function makeCrud(opts) {
           .select('*')
           .single();
         if (error) throw error;
-        const mudancas = diffCampos(antes, data, campos);
+        const mudancas = diffCampos(registro, data, campos);
         await registrarHistorico({
           tabela,
           registroId: id,
@@ -420,40 +469,44 @@ export function makeCrud(opts) {
           acao: 'UPDATE',
           descricao: `${rotulo} atualizado${data.codigo ? ` (${data.codigo})` : ''}`,
           usuario: user,
-          antes,
+          antes: registro,
           depois: data,
           mudancas: Object.keys(mudancas).length ? mudancas : null,
         });
-        if (afterWrite) await afterWrite('PUT', data, antes, user);
-        return res.status(200).json(transform ? transform(data) : data);
+        if (afterWrite) await afterWrite('PUT', data, registro, user);
+        const saida = transform ? transform(data) : data;
+        return res.status(200).json(sanitize ? sanitize(saida) : saida);
       }
 
       /* --------------------------- DELETE */
       if (req.method === 'DELETE') {
         const id = (req.body || {}).id ?? req.query.id;
         if (!id) return res.status(400).json({ error: 'Campo "id" é obrigatório.' });
-        const { data: antes } = await supabase.from(tabela).select('*').eq('id', id).single();
+        const { data: antes } = await supabase
+          .from(tabela)
+          .select('*')
+          .eq('id', id)
+          .limit(1);
         const { error } = await supabase.from(tabela).delete().eq('id', id);
         if (error) throw error;
         await registrarHistorico({
           tabela,
           registroId: id,
-          codigo: antes?.codigo || `#${id}`,
+          codigo: antes?.[0]?.codigo || `#${id}`,
           acao: 'DELETE',
-          descricao: `${rotulo} excluído${antes?.codigo ? ` (${antes.codigo})` : ''}`,
+          descricao: `${rotulo} excluído${antes?.[0]?.codigo ? ` (${antes[0].codigo})` : ''}`,
           usuario: user,
-          antes,
+          antes: antes?.[0] || null,
           depois: null,
         });
         return res.status(200).json({ ok: true });
       }
 
-      res.status(405).json({ error: 'Method not allowed' });
+      res.status(405).json({ error: 'Método não permitido' });
     } catch (err) {
-      console.error('API error:', err);
-      res.status(500).json({ error: err.message });
+      return responderErro(res, err);
     }
   };
 }
 
-export { supabase };
+export { supabase, HttpError, responderErro };

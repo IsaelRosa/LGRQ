@@ -1,4 +1,4 @@
-import { setCORS, supabase } from './shared.js';
+import { setCORS, supabase, currentUser, responderErro } from './shared.js';
 
 const MODULOS = {
   pedidos_coleta: {
@@ -144,7 +144,9 @@ function num(v) {
 export default async function handler(req, res) {
   if (setCORS(req, res)) return;
   try {
-    if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+    if (req.method !== 'GET') return res.status(405).json({ error: 'Método não permitido' });
+
+    await currentUser(req);
 
     if (req.query.modulos === 'lista' || !req.query.modulo) {
       return res.status(200).json({
@@ -256,8 +258,7 @@ export default async function handler(req, res) {
       gerado_em: new Date().toISOString(),
     });
   } catch (err) {
-    console.error('API error:', err);
-    res.status(500).json({ error: err.message });
+    return responderErro(res, err);
   }
 }
 

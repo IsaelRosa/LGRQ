@@ -19,5 +19,30 @@ export default defineConfig([
       ecmaVersion: 2020,
       globals: globals.browser,
     },
+    rules: {
+      // O LGRP é uma aplicação de CRUD sobre registros de laboratório: os
+      // formulários dinâmicos (`FieldDef`) produzem objetos cuja forma só é
+      // conhecida em tempo de execução. Tipar tudo exigiria um gerador de
+      // tipos por módulo sem ganho de segurança real — o contrato fica no
+      // servidor, em `api/`.
+      '@typescript-eslint/no-explicit-any': 'off',
+      // Os contexts exportam o hook junto do provider, padrão adotado em
+      // ToastContext e AuthContext.
+      'react-refresh/only-export-components': 'off',
+    },
+  },
+  {
+    // Backend em JS puro (Node): sem DOM, com globais de Node.
+    files: ['api/**/*.js', 'server.js', 'scripts/**/*.mjs', 'test/**/*.mjs'],
+    extends: [js.configs.recommended],
+    languageOptions: {
+      ecmaVersion: 2023,
+      sourceType: 'module',
+      globals: { ...globals.node },
+    },
+    rules: {
+      'no-unused-vars': ['warn', { argsIgnorePattern: '^_|^req$|^res$|^next$' }],
+      'no-empty': ['error', { allowEmptyCatch: true }],
+    },
   },
 ])

@@ -1,4 +1,5 @@
-import { setCORS, supabase } from './shared.js';
+import { setCORS, supabase, currentUser, responderErro } from './shared.js';
+import { escapeLike } from './db-client.js';
 
 const ROTULOS = {
   pedidos_coleta: 'Pedidos de Coleta',
@@ -15,6 +16,8 @@ const ROTULOS = {
 export default async function handler(req, res) {
   if (setCORS(req, res)) return;
   try {
+    await currentUser(req);
+
     if (req.method === 'GET') {
       let q = supabase.from('historico').select('*');
       if (req.query.tabela && req.query.tabela !== 'todos') q = q.eq('tabela', req.query.tabela);
@@ -27,9 +30,14 @@ export default async function handler(req, res) {
         q = q.lte('criado_em', ate.length === 10 ? `${ate}T23:59:59.999Z` : ate);
       }
       if (req.query.busca) {
-        const termo = String(req.query.busca).replace(/[,()%]/g, ' ').trim();
+        const termo = String(req.query.busca)
+          .replace(/[,()]/g, ' ')
+          .trim();
         if (termo) {
-          q = q.or(`descricao.ilike.%${termo}%,registro_codigo.ilike.%${termo}%,usuario.ilike.%${termo}%`);
+          const p = `%${escapeLike(termo)}%`;
+          q = q.or(
+            `descricao.ilike.${p},registro_codigo.ilike.${p},usuario.ilike.${p}`
+          );
         }
       }
       const limite = Math.min(parseInt(req.query.limit || '200', 10) || 200, 1000);
@@ -42,9 +50,8 @@ export default async function handler(req, res) {
         usuarios: (usuarios || []).map((u) => u.nome),
       });
     }
-    res.status(405).json({ error: 'Method not allowed' });
+    res.status(405).json({ error: 'Método não permitido' });
   } catch (err) {
-    console.error('API error:', err);
-    res.status(500).json({ error: err.message });
+    return responderErro(res, err);
   }
 }

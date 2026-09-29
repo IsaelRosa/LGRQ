@@ -181,6 +181,7 @@ export const STATUS_VIDRARIA = [
 
 export const PAPEIS = [
   'Administrador',
+  'Coordenador',
   'Químico Responsável',
   'Gestor Ambiental',
   'Técnico de Laboratório',

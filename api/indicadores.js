@@ -1,4 +1,5 @@
-import { setCORS, registrarHistorico, currentUser, supabase } from './shared.js';
+import { setCORS, registrarHistorico, currentUser, supabase, responderErro } from './shared.js';
+import { exigirEdicao } from './authz.js';
 
 const MESES_NOME = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -164,6 +165,7 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'PUT' || req.method === 'POST') {
+      exigirEdicao(user);
       const { mes, ano } = req.body || {};
       if (!mes || !ano) return res.status(400).json({ error: 'Informe mês e ano.' });
       const payload = {
@@ -228,9 +230,8 @@ export default async function handler(req, res) {
       return res.status(200).json(salvo);
     }
 
-    res.status(405).json({ error: 'Method not allowed' });
+    res.status(405).json({ error: 'Método não permitido' });
   } catch (err) {
-    console.error('API error:', err);
-    res.status(500).json({ error: err.message });
+    return responderErro(res, err);
   }
 }

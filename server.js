@@ -1,6 +1,9 @@
 import express from 'express';
 import path from 'node:path';
+import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
+
+import auth from './api/auth.js';
 import coletas from './api/coletas.js';
 import dashboard from './api/dashboard.js';
 import historico from './api/historico.js';
@@ -13,13 +16,41 @@ import solventes from './api/solventes.js';
 import tratamentos from './api/tratamentos.js';
 import usuarios from './api/usuarios.js';
 import vidrarias from './api/vidrarias.js';
+import { descreverErro, healthCheck, pool } from './api/db-client.js';
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
 const root = path.dirname(fileURLToPath(import.meta.url));
+const isProd = process.env.NODE_ENV === 'production';
 
 app.disable('x-powered-by');
+// A Hostinger termina o TLS no proxy; isso faz o req.ip correto no rate limit.
+app.set('trust proxy', 1);
+
 app.use(express.json({ limit: '2mb' }));
+
+/* ------------------------------------------------------------------ */
+/* Cabeçalhos de segurança                                            */
+/* ------------------------------------------------------------------ */
+
+app.use((_req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
+  if (isProd) {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
+  next();
+});
+
+/* ------------------------------------------------------------------ */
+/* Rotas da API                                                       */
+/* ------------------------------------------------------------------ */
+
+// A autenticação responde tanto em /api/auth quanto em /api/auth/*.
+// O prefixo é a única área pública da API.
+app.all(/^\/api\/auth(\/.*)?$/, (req, res) => auth(req, res));
 
 const routes = {
   coletas,
@@ -40,13 +71,93 @@ for (const [name, handler] of Object.entries(routes)) {
   app.all(`/api/${name}`, (req, res) => handler(req, res));
 }
 
-app.get('/health', (_req, res) => res.status(200).json({ ok: true }));
-app.use(express.static(path.join(root, 'dist')));
-app.use((req, res) => {
-  if (req.method !== 'GET') return res.status(404).json({ error: 'Rota não encontrada.' });
-  return res.sendFile(path.join(root, 'dist', 'index.html'));
+// Qualquer /api/* desconhecido precisa responder 401/404 em JSON, nunca o index.html.
+app.all(/^\/api\/.+/, (_req, res) => res.status(404).json({ error: 'Rota de API inexistente.' }));
+
+/* ------------------------------------------------------------------ */
+/* Saúde e frontend                                                    */
+/* ------------------------------------------------------------------ */
+
+app.get('/health', async (_req, res) => {
+  try {
+    await healthCheck();
+    res.status(200).json({ ok: true, banco: 'conectado', uptime: process.uptime() });
+  } catch (err) {
+    res.status(503).json({ ok: false, banco: 'indisponivel', erro: descreverErro(err) });
+  }
 });
 
-app.listen(port, '0.0.0.0', () => {
-  console.log(`LGRP server listening on port ${port}`);
+const distDir = path.join(root, 'dist');
+
+if (!fs.existsSync(distDir)) {
+  console.warn('[lgrp] dist/ não encontrado — execute "npm run build" antes de iniciar em produção.');
+}
+
+app.use(
+  express.static(distDir, {
+    index: false,
+    maxAge: isProd ? '1y' : 0,
+    setHeaders(res, filePath) {
+      // O index.html nunca deve ficar em cache: é ele que aponta para os
+      // bundles versionados por hash.
+      if (filePath.endsWith('index.html')) {
+        res.setHeader('Cache-Control', 'no-cache');
+      }
+    },
+  })
+);
+
+// Fallback da SPA: qualquer GET desconhecido devolve o index.
+app.use((req, res) => {
+  if (req.method !== 'GET') {
+    return res.status(404).json({ error: 'Rota não encontrada.' });
+  }
+  return res.sendFile(path.join(distDir, 'index.html'), (err) => {
+    if (err) {
+      res
+        .status(500)
+        .json({ error: 'Frontend não compilado. Execute "npm run build" e reinicie o servidor.' });
+    }
+  });
 });
+
+/* ------------------------------------------------------------------ */
+/* Tratamento global de erro                                          */
+/* ------------------------------------------------------------------ */
+
+app.use((err, _req, res, _next) => {
+  if (err?.type === 'entity.parse.failed') {
+    return res.status(400).json({ error: 'Corpo da requisição não é um JSON válido.' });
+  }
+  if (err?.type === 'entity.too.large') {
+    return res.status(413).json({ error: 'Payload acima do limite de 2 MB.' });
+  }
+  console.error('Erro não tratado:', err);
+  res.status(500).json({ error: 'Erro interno do servidor.' });
+});
+
+/* ------------------------------------------------------------------ */
+/* Ciclo de vida                                                      */
+/* ------------------------------------------------------------------ */
+
+const server = app.listen(port, '0.0.0.0', () => {
+  console.log(`LGRP server listening on port ${port} (${isProd ? 'produção' : 'desenvolvimento'})`);
+});
+
+async function encerrar(sinal) {
+  console.log(`\n[lgrp] recebido ${sinal}, encerrando...`);
+  server.close(async () => {
+    try {
+      await pool.end();
+    } catch {
+      /* ignore */
+    }
+    process.exit(0);
+  });
+  // Não deixa conexões presas bloquearem o encerramento na Hostinger.
+  setTimeout(() => process.exit(1), 10000).unref();
+}
+
+process.on('SIGTERM', () => encerrar('SIGTERM'));
+process.on('SIGINT', () => encerrar('SIGINT'));
+process.on('unhandledRejection', (reason) => console.error('[lgrp] unhandledRejection:', reason));

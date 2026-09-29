@@ -1,4 +1,4 @@
-import { setCORS, gerarAlertas, supabase } from './shared.js';
+import { setCORS, gerarAlertas, supabase, currentUser, responderErro } from './shared.js';
 
 const MESES = [
   'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun',
@@ -20,8 +20,9 @@ function mesDe(d) {
 export default async function handler(req, res) {
   if (setCORS(req, res)) return;
   try {
-    if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+    if (req.method !== 'GET') return res.status(405).json({ error: 'Método não permitido' });
 
+    await currentUser(req);
     await gerarAlertas();
 
     const [
@@ -290,7 +291,6 @@ export default async function handler(req, res) {
       gerado_em: new Date().toISOString(),
     });
   } catch (err) {
-    console.error('API error:', err);
-    res.status(500).json({ error: err.message });
+    return responderErro(res, err);
   }
 }

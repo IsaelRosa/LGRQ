@@ -1,8 +1,12 @@
-import { setCORS, gerarAlertas, supabase } from './shared.js';
+import { setCORS, gerarAlertas, supabase, currentUser, responderErro } from './shared.js';
+import { exigirEdicao } from './authz.js';
 
 export default async function handler(req, res) {
   if (setCORS(req, res)) return;
   try {
+    const user = await currentUser(req);
+    if (req.method !== 'GET') exigirEdicao(user);
+
     if (req.method === 'GET') {
       await gerarAlertas();
       let q = supabase.from('notificacoes').select('*');
@@ -65,9 +69,8 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true });
     }
 
-    res.status(405).json({ error: 'Method not allowed' });
+    res.status(405).json({ error: 'Método não permitido' });
   } catch (err) {
-    console.error('API error:', err);
-    res.status(500).json({ error: err.message });
+    return responderErro(res, err);
   }
 }

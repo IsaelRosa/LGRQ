@@ -1,20 +1,26 @@
 {
-  "name": "vite-react-ts-fullstack",
+  "name": "lgrp",
   "private": true,
-  "version": "0.0.0",
+  "version": "2.5.0",
   "type": "module",
+  "engines": {
+    "node": ">=20.6.0"
+  },
   "scripts": {
-    "dev": "vite",
+    "dev": "concurrently -n api,web -c green,cyan \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:api": "node --watch --env-file-if-exists=.env server.js",
+    "dev:web": "vite",
     "build": "tsc -b && vite build",
-    "start": "node server.js",
+    "start": "node --env-file-if-exists=.env server.js",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "seed": "node --env-file-if-exists=.env scripts/seed.mjs",
+    "test": "node --test \"test/**/*.test.mjs\"",
+    "test:e2e": "node --env-file-if-exists=.env test/e2e.mjs"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.99.1",
-    "@tailwindcss/vite": "^4.2.1",
-    "framer-motion": "^12.35.0",
     "express": "^5.1.0",
+    "framer-motion": "^12.35.0",
     "lucide-react": "^0.577.0",
     "mysql2": "^3.24.4",
     "react": "^19.2.0",
@@ -25,10 +31,12 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "@tailwindcss/vite": "^4.2.1",
     "@types/node": "^24.19.0",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
+    "concurrently": "^9.2.4",
     "eslint": "^9.39.1",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",

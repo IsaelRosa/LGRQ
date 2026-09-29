@@ -7,7 +7,6 @@ import {
   Beaker,
   Eye,
   EyeOff,
-  Loader2,
   Lock,
   Mail,
   Recycle,
@@ -15,7 +14,6 @@ import {
   User,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { signInWithGoogle } from '../lib/googleAuth';
 import { Button, Input } from '../components/ui';
 
 const DESTAQUES = [
@@ -48,7 +46,6 @@ export default function Login() {
   const [errosCampo, setErrosCampo] = useState<Record<string, string>>({});
   const [enviando, setEnviando] = useState(false);
   const [aviso, setAviso] = useState('');
-
   if (!loading && user) return <Navigate to="/" replace />;
 
   const validar = () => {
@@ -74,9 +71,10 @@ export default function Login() {
       } else {
         const r = await signUp(email.trim(), senha, nome.trim());
         if (r.error) setErro(r.error);
+        else if ('aviso' in r && r.aviso) setAviso(r.aviso);
         else
           setAviso(
-            'Cadastro realizado. Verifique sua caixa de entrada caso seja necessária a confirmação do e-mail.'
+            'Cadastro realizado. Um administrador do LGRP deverá liberar suas permissões de edição.'
           );
       }
     } catch (e: any) {
@@ -329,38 +327,13 @@ export default function Login() {
             </Button>
           </form>
 
-          <div className="my-5 flex items-center gap-3">
-            <span className="h-px flex-1 bg-ink-200" />
-            <span className="text-[11px] font-medium uppercase tracking-wider text-ink-400">ou</span>
-            <span className="h-px flex-1 bg-ink-200" />
-          </div>
-
-          <button
-            type="button"
-            onClick={() => signInWithGoogle('LGRP — Gestão de Resíduos Químicos')}
-            className="flex h-11 w-full items-center justify-center gap-3 rounded-xl border border-ink-200 bg-white text-sm font-medium text-ink-700 transition hover:border-ink-300 hover:bg-ink-50"
-          >
-            <svg className="h-4.5 w-4.5" viewBox="0 0 24 24" aria-hidden="true">
-              <path
-                fill="#4285F4"
-                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1z"
-              />
-              <path
-                fill="#34A853"
-                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23z"
-              />
-              <path
-                fill="#FBBC05"
-                d="M5.84 14.1a6.6 6.6 0 0 1 0-4.2V7.06H2.18a11 11 0 0 0 0 9.88l3.66-2.84z"
-              />
-              <path
-                fill="#EA4335"
-                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15A11 11 0 0 0 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-              />
-            </svg>
-            Continuar com Google
-            {enviando && <Loader2 className="h-4 w-4 animate-spin text-ink-400" />}
-          </button>
+          {modo === 'cadastro' && (
+            <p className="mt-6 text-center text-[11px] leading-relaxed text-ink-400">
+              O primeiro usuário cadastrado recebe automaticamente o perfil de{' '}
+              <strong>Administrador</strong>. Os demais entram como <strong>Consultor</strong> (somente
+              leitura) até serem promovidos por um administrador.
+            </p>
+          )}
 
           <p className="mt-8 text-center text-[11px] leading-relaxed text-ink-400">
             Acesso monitorado e registrado. Toda operação realizada nesta plataforma é armazenada na

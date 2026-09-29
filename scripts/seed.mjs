@@ -1,15 +1,24 @@
-import { createClient } from '@supabase/supabase-js';
-import fs from 'fs';
+/**
+ * Seed do LGRP — popula o MySQL com dados de demonstração.
+ *
+ *   npm run seed
+ *
+ * Todas as senhas recebem a senha informada em SEED_SENHA (ou --senha).
+ * O padrão é gerada e exibida ao final, para não haver senha fraca em silêncio.
+ */
+import crypto from 'node:crypto';
+import db, { pool } from '../api/db-client.js';
+import { hashSenha } from '../api/authz.js';
 
-const envAll = Object.fromEntries(
-  fs.readFileSync('.env', 'utf8').split('\n').filter((l) => l.includes('=')).map((l) => {
-    const i = l.indexOf('=');
-    return [l.slice(0, i).trim(), l.slice(i + 1).trim().replace(/^["']|["']$/g, '')];
-  })
-);
+const args = process.argv.slice(2);
+const arg = (nome, padrao = null) => {
+  const i = args.indexOf(`--${nome}`);
+  return i >= 0 && args[i + 1] ? args[i + 1] : padrao;
+};
 
-const env = { NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL || envAll.NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY || envAll.SUPABASE_SERVICE_ROLE_KEY };
-const sb = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
+const SENHA = arg('senha', process.env.SEED_SENHA) || crypto.randomBytes(6).toString('base64url');
+const SENHA_PADRAO = !arg('senha', process.env.SEED_SENHA);
+const ANO = new Date().getFullYear();
 
 const LABS = [
   'Lab. de Química Analítica', 'Lab. de Química Orgânica', 'Lab. de Química Inorgânica',
@@ -40,11 +49,11 @@ const MET_DESC = ['Lavagem com detergente neutro','Banho ácido (HNO₃ 10%)','B
 const ST_VID = ['Aguardando Descontaminação','Em Descontaminação','Descontaminada','Reaproveitada','Descartada'];
 const NIV = ['Baixo','Médio','Alto','Crítico'];
 const FABR = ['Merck / Sigma-Aldrich','Vetec','Dinâmica Química','Impex','Synth','Neon Comercial','J.T. Baker'];
-const CL_RISCO = ['Corrosivo','Inflamável','Tóxico','Oxidante','Nocivo','Irritante','Cancerígeno','Reativo'];
+
 
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
 const ri = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a;
-const rf = (a, b, d = 1) => Number((Math.random() * (b - a) + a).toFixed(d));
+const rf = (a, b, dec = 1) => Number((Math.random() * (b - a) + a).toFixed(dec));
 const d = (daysAgo, h = 12) => {
   const x = new Date();
   x.setUTCDate(x.getUTCDate() - daysAgo);
@@ -57,14 +66,48 @@ const dFut = (days) => {
   return x.toISOString();
 };
 
+/**
+ * Inserção em lote: o driver faz 1 round-trip por bloco, não por linha.
+ * Devolve as linhas completas, pois os passos seguintes dependem de campos
+ * como `status`, `codigo` e `data_solicitacao`.
+ */
+async function inserir(tabela, linhas) {
+  if (!linhas.length) return [];
+  const lote = 200;
+  const out = [];
+  for (let i = 0; i < linhas.length; i += lote) {
+    const { data, error } = await db.from(tabela).insert(linhas.slice(i, i + lote)).select('*');
+    if (error) throw new Error(`${tabela}: ${error.message}`);
+    out.push(...(data || []));
+  }
+  return out;
+}
+
 async function main() {
-  // limpeza
-  for (const t of ['historico','notificacoes','coletas','tratamentos','pedidos_coleta','solventes','reagentes','vidrarias','indicadores_mensais','usuarios']) {
-    const { error } = await sb.from(t).delete().neq('id', 0);
-    if (error) console.log('limpeza', t, error.message);
+  const { data: existentes } = await db.from('usuarios').select('id').limit(1);
+  if ((existentes || []).length && !args.includes('--forcar')) {
+    console.error(
+      'O banco já contém usuários. O seed APAGA todos os dados.\n' +
+        'Se realmente for isso, execute com --forcar.'
+    );
+    process.exit(1);
+  }
+
+  console.log('Limpando tabelas existentes...');
+  const conn = await pool.getConnection();
+  try {
+    await conn.query('SET FOREIGN_KEY_CHECKS = 0');
+    for (const t of ['historico','notificacoes','coletas','tratamentos','pedidos_coleta','solventes','reagentes','vidrarias','indicadores_mensais','usuarios']) {
+      await conn.query(`TRUNCATE TABLE \`${t}\``);
+    }
+    await conn.query('SET FOREIGN_KEY_CHECKS = 1');
+  } finally {
+    conn.release();
   }
 
   /* ---------- usuários ---------- */
+  console.log('Inserindo usuários...');
+  const senha_hash = await hashSenha(SENHA);
   const usuarios = [
     { nome: 'Helena Vasconcelos Prado', email: 'helena.prado@universidade.br', papel: 'Administrador', setor: 'Laboratório de Gestão de Resíduos Perigosos', crq: 'CRQ-IV 04352891', telefone: '(11) 3091-6402', ativo: true },
     { nome: 'Ricardo Almeida Nunes', email: 'ricardo.nunes@universidade.br', papel: 'Químico Responsável', setor: 'Central Analítica Multiusuária', crq: 'CRQ-IV 04219873', telefone: '(11) 3091-6418', ativo: true },
@@ -76,10 +119,10 @@ async function main() {
     { nome: 'Fernando Ribeiro Lima', email: 'fernando.lima@universidade.br', papel: 'Consultor', setor: 'Auditoria Ambiental Externa', crq: '', telefone: '(11) 98812-4477', ativo: true },
     { nome: 'Patrícia Nogueira Dias', email: 'patricia.dias@universidade.br', papel: 'Gestor Ambiental', setor: 'Prefeitura do Campus', crq: '', telefone: '(11) 3091-6222', ativo: false },
     { nome: 'Rafael Monteiro Sales', email: 'rafael.sales@universidade.br', papel: 'Técnico de Laboratório', setor: 'Lab. de Ensino de Graduação', crq: 'CRQ-IV 04711908', telefone: '(11) 3091-6433', ativo: true },
-  ];
-  const { data: us, error: eus } = await sb.from('usuarios').insert(usuarios).select();
-  if (eus) throw eus;
-  console.log('usuarios', us.length);
+  ].map((u) => ({ ...u, senha_hash }));
+
+  const us = await inserir('usuarios', usuarios);
+  console.log(`  ${us.length} usuários`);
 
   /* ---------- pedidos ---------- */
   const pedidos = [];
@@ -90,7 +133,7 @@ async function main() {
     const un = tipo.includes('Solvente') || tipo.includes('Aquoso') || tipo.includes('Óleo') ? 'L' : tipo.includes('Vidraria') || tipo.includes('Lâmpadas') || tipo.includes('Perfurocortante') ? 'un' : 'kg';
     const coletado = ['Coletado','Em Tratamento','Destinado'].includes(status);
     pedidos.push({
-      codigo: `PED-2026-${String(i + 1).padStart(4, '0')}`,
+      codigo: `PED-${ANO}-${String(i + 1).padStart(4, '0')}`,
       laboratorio: pick(LABS),
       solicitante: pick(PESSOAS),
       usuario_id: pick(us).id,
@@ -111,9 +154,8 @@ async function main() {
       observacoes: Math.random() > 0.6 ? 'Resíduo segregado conforme procedimento operacional padrão POP-LGRP-04. Frascos identificados e lacrados.' : null,
     });
   }
-  const { data: pd, error: epd } = await sb.from('pedidos_coleta').insert(pedidos).select();
-  if (epd) throw epd;
-  console.log('pedidos', pd.length);
+  const pd = await inserir('pedidos_coleta', pedidos);
+  console.log(`  ${pd.length} pedidos de coleta`);
 
   /* ---------- coletas ---------- */
   const coletaveis = pd.filter((p) => ['Coletado','Em Tratamento','Destinado'].includes(p.status));
@@ -127,12 +169,11 @@ async function main() {
     unidades: ri(1, 12),
     destino_temporario: pick(LOCAIS),
     veiculo: pick(VEIC),
-    mtr: `MTR-2026-${String(ri(100000, 999999))}`,
+    mtr: `MTR-${ANO}-${String(ri(100000, 999999))}`,
     observacoes: Math.random() > 0.75 ? 'Conferência de lacres e identificação realizada no local.' : null,
   }));
-  const { data: cl, error: ecl } = await sb.from('coletas').insert(coletas).select();
-  if (ecl) throw ecl;
-  console.log('coletas', cl.length);
+  const cl = await inserir('coletas', coletas);
+  console.log(`  ${cl.length} coletas`);
 
   /* ---------- tratamentos ---------- */
   const tratamentos = [];
@@ -145,7 +186,7 @@ async function main() {
     const ent = rf(5, 220, 1);
     const sai = destil ? rf(ent * 0.55, ent * 0.88, 1) : rf(ent * 0.05, ent * 0.4, 1);
     tratamentos.push({
-      codigo: `TRT-2026-${String(i + 1).padStart(4, '0')}`,
+      codigo: `TRT-${ANO}-${String(i + 1).padStart(4, '0')}`,
       pedido_id: Math.random() > 0.5 ? pick(pd).id : null,
       residuo: destil ? pick(['Mistura de acetona e metanol','Clorofórmio contaminado','Mistura de solventes apolares','Etanol 96% contaminado','Diclorometano de extração']) : pick(['Resíduo ácido misto','Solução alcalina de hidróxido de sódio','Resíduo com cromo hexavalente','Solução contendo prata','Resíduo orgânico halogenado','Resíduo com cianeto','Óleo lubrificante usado','Resíduo biológico autoclavável']),
       grupo: pick(GRUPOS),
@@ -160,16 +201,15 @@ async function main() {
       responsavel_tecnico: pick(['Ricardo Almeida Nunes','Ana Luísa Bergamaschi','Helena Vasconcelos Prado']),
       destino_final: destil ? 'Recuperação Interna LGRP' : pick(DESTINOS),
       cnpj_destinador: destil ? null : `${ri(10,99)}.${ri(100,999)}.${ri(100,999)}/0001-${ri(10,99)}`,
-      mtr: `MTR-2026-${ri(100000, 999999)}`,
+      mtr: `MTR-${ANO}-${ri(100000, 999999)}`,
       certificado: status === 'Concluído' && !destil ? `CDF-${ri(10000, 99999)}` : null,
       custo: status === 'Concluído' ? rf(180, 6800, 2) : null,
       status,
       observacoes: Math.random() > 0.7 ? 'Processo acompanhado com registro de temperatura e pH a cada 30 minutos.' : null,
     });
   }
-  const { data: tr, error: etr } = await sb.from('tratamentos').insert(tratamentos).select();
-  if (etr) throw etr;
-  console.log('tratamentos', tr.length);
+  const tr = await inserir('tratamentos', tratamentos);
+  console.log(`  ${tr.length} tratamentos`);
 
   /* ---------- solventes ---------- */
   const SOLV = [
@@ -195,7 +235,7 @@ async function main() {
     const rest = rf(0.5, total, 1);
     const vencido = i % 7 === 3;
     return {
-      codigo: `SOL-2026-${String(i + 1).padStart(4, '0')}`,
+      codigo: `SOL-${ANO}-${String(i + 1).padStart(4, '0')}`,
       nome: s[0], formula: s[1], cas: s[2], categoria: s[3], pureza: s[4],
       volume_total_l: total,
       volume_restante_l: rest,
@@ -211,9 +251,8 @@ async function main() {
       observacoes: null,
     };
   });
-  const { data: so, error: eso } = await sb.from('solventes').insert(solventes).select();
-  if (eso) throw eso;
-  console.log('solventes', so.length);
+  const so = await inserir('solventes', solventes);
+  console.log(`  ${so.length} solventes`);
 
   /* ---------- reagentes ---------- */
   const REAG = [
@@ -248,7 +287,7 @@ async function main() {
     const aVencer = i % 5 === 2;
     const un = pick(['g','g','kg','mL','L','un']);
     return {
-      codigo: `REA-2026-${String(i + 1).padStart(4, '0')}`,
+      codigo: `REA-${ANO}-${String(i + 1).padStart(4, '0')}`,
       nome: r[0], formula: r[1], cas: r[2], classe_risco: r[3],
       fabricante: pick(FABR),
       lote: `${pick(['SLBV','MK','VT','DN','IM'])}${ri(1000, 9999)}`,
@@ -262,9 +301,8 @@ async function main() {
       observacoes: null,
     };
   });
-  const { data: re, error: ere } = await sb.from('reagentes').insert(reagentes).select();
-  if (ere) throw ere;
-  console.log('reagentes', re.length);
+  const re = await inserir('reagentes', reagentes);
+  console.log(`  ${re.length} reagentes`);
 
   /* ---------- vidrarias ---------- */
   const vidrarias = [];
@@ -273,7 +311,7 @@ async function main() {
     const status = dias > 45 ? pick(['Descontaminada','Reaproveitada','Descartada','Descontaminada']) : pick(ST_VID);
     const feito = ['Descontaminada','Reaproveitada','Descartada'].includes(status);
     vidrarias.push({
-      codigo: `VID-2026-${String(i + 1).padStart(4, '0')}`,
+      codigo: `VID-${ANO}-${String(i + 1).padStart(4, '0')}`,
       tipo: pick(TIPOS_VID),
       laboratorio: pick(LABS),
       contaminante: pick(CONTAM),
@@ -289,17 +327,15 @@ async function main() {
       observacoes: Math.random() > 0.8 ? 'Peças inspecionadas individualmente; trincas descartadas.' : null,
     });
   }
-  const { data: vi, error: evi } = await sb.from('vidrarias').insert(vidrarias).select();
-  if (evi) throw evi;
-  console.log('vidrarias', vi.length);
+  const vi = await inserir('vidrarias', vidrarias);
+  console.log(`  ${vi.length} vidrarias`);
 
   /* ---------- indicadores (lançamentos manuais) ---------- */
-  const ano = new Date().getFullYear();
   const ind = [];
   for (let m = 1; m <= 12; m++) {
     if (m > new Date().getMonth() + 1) break;
     ind.push({
-      mes: m, ano,
+      mes: m, ano: ANO,
       acidentes: m === 4 ? 1 : 0,
       treinamentos: ri(1, 4),
       custo_operacional: rf(400, 2600, 2),
@@ -307,18 +343,18 @@ async function main() {
       observacoes: m === 4 ? 'Derramamento de 500 mL de ácido nítrico na bancada 3, contido com vermiculita. Nenhum ferimento.' : m === 7 ? 'Auditoria interna do SGA concluída sem não conformidades maiores.' : null,
     });
   }
-  const { data: iv, error: eiv } = await sb.from('indicadores_mensais').insert(ind).select();
-  if (eiv) throw eiv;
-  console.log('indicadores', iv.length);
+  const iv = await inserir('indicadores_mensais', ind);
+  console.log(`  ${iv.length} indicadores mensais`);
 
   /* ---------- histórico (eventos iniciais) ---------- */
   const hist = [];
-  const acoes = ['INSERT','UPDATE'];
+  const emailDe = (nome) =>
+    `${nome.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '.')}@universidade.br`;
   pd.slice(0, 40).forEach((p, i) => {
     hist.push({
       tabela: 'pedidos_coleta', registro_id: String(p.id), registro_codigo: p.codigo,
       acao: 'INSERT', descricao: `Pedido de coleta criado (${p.codigo})`,
-      usuario: p.solicitante, usuario_email: `${p.solicitante.toLowerCase().replace(/\s+/g,'.')}@universidade.br`,
+      usuario: p.solicitante, usuario_email: emailDe(p.solicitante),
       dados_anteriores: null, dados_novos: { codigo: p.codigo, laboratorio: p.laboratorio, tipo_residuo: p.tipo_residuo, status: 'Solicitado' }, mudancas: null,
       criado_em: p.data_solicitacao,
     });
@@ -336,17 +372,23 @@ async function main() {
   tr.slice(0, 25).forEach((t) => {
     hist.push({
       tabela: 'tratamentos', registro_id: String(t.id), registro_codigo: t.codigo,
-      acao: pick(acoes), descricao: `Tratamento de resíduo registrado (${t.codigo})`,
+      acao: 'INSERT', descricao: `Tratamento de resíduo registrado (${t.codigo})`,
       usuario: t.operador, usuario_email: 'lgrp@universidade.br',
       dados_anteriores: null, dados_novos: { codigo: t.codigo, metodo: t.metodo, status: t.status }, mudancas: null,
       criado_em: t.data_inicio,
     });
   });
-  const { data: hs, error: ehs } = await sb.from('historico').insert(hist).select();
-  if (ehs) throw ehs;
-  console.log('historico', hs.length);
+  const hs = await inserir('historico', hist);
+  console.log(`  ${hs.length} registros de auditoria`);
 
-  console.log('SEED OK');
+  console.log('\nSEED CONCLUÍDO');
+  console.log('Acesso administrador: helena.prado@universidade.br');
+  console.log(`Senha para todos os usuários: ${SENHA}${SENHA_PADRAO ? '  (gerada; defina --senha para escolher)' : ''}`);
 }
 
-main().catch((e) => { console.error('ERRO:', e.message); process.exit(1); });
+main()
+  .catch((e) => {
+    console.error('ERRO:', e.message);
+    process.exitCode = 1;
+  })
+  .finally(() => pool.end());

@@ -1,25 +1,16 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import supabase from '../lib/supabase';
-import { apiGet } from '../lib/api';
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
+import { apiGet, apiPost, api, ErroApi, EVENTO_SESSAO_EXPIRADA } from '../lib/api';
+import { clearSessao, getToken, setSessao, type Usuario } from '../lib/session';
 
-export type Perfil = {
-  id: number | null;
-  nome: string;
-  email: string;
-  papel: string;
-  setor: string;
-  crq: string;
-  telefone: string;
-  ativo: boolean;
-};
+export type { Usuario };
 
 type AuthCtx = {
-  user: any | null;
-  perfil: Perfil | null;
-  session: any | null;
+  user: Usuario | null;
+  /** Alias de `user`, mantido porque boa parte das telas já referencia `perfil`. */
+  perfil: Usuario | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error?: string }>;
-  signUp: (email: string, password: string, nome: string) => Promise<{ error?: string }>;
+  signIn: (email: string, senha: string) => Promise<{ error?: string }>;
+  signUp: (email: string, senha: string, nome: string) => Promise<{ error?: string; aviso?: string }>;
   signOut: () => Promise<void>;
   podeEditar: boolean;
   podeGerenciarUsuarios: boolean;
@@ -28,150 +19,111 @@ type AuthCtx = {
 const AuthContext = createContext<AuthCtx>({
   user: null,
   perfil: null,
-  session: null,
   loading: true,
   signIn: async () => ({}),
   signUp: async () => ({}),
   signOut: async () => {},
-  podeEditar: true,
+  podeEditar: false,
   podeGerenciarUsuarios: false,
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<any | null>(null);
-  const [session, setSession] = useState<any | null>(null);
-  const [perfil, setPerfil] = useState<Perfil | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Sem token não há nada a revalidar: iniciar como "carregando" só
+  // causaria um render desnecessário antes de mostrar o /login.
+  const [user, setUser] = useState<Usuario | null>(null);
+  const [loading, setLoading] = useState(() => !!getToken());
 
-  const carregarPerfil = async (email: string) => {
-    try {
-      const lista = await apiGet<any[]>('/api/usuarios');
-      const encontrado = (lista || []).find(
-        (u) => (u.email || '').toLowerCase() === email.toLowerCase()
-      );
-      if (encontrado) {
-        setPerfil({
-          id: encontrado.id,
-          nome: encontrado.nome,
-          email: encontrado.email,
-          papel: encontrado.papel,
-          setor: encontrado.setor || '',
-          crq: encontrado.crq || '',
-          telefone: encontrado.telefone || '',
-          ativo: encontrado.ativo !== false,
-        });
-        return;
-      }
-    } catch {
-      /* perfil opcional */
-    }
-    setPerfil({
-      id: null,
-      nome: email.split('@')[0].replace(/[._]/g, ' '),
-      email,
-      papel: 'Consultor',
-      setor: '',
-      crq: '',
-      telefone: '',
-      ativo: true,
-    });
-  };
+  const encerrar = useCallback(() => {
+    clearSessao();
+    setUser(null);
+  }, []);
 
+  // Revalida a sessão guardada no navegador contra o servidor na carga da página.
   useEffect(() => {
     let ativo = true;
 
-    supabase.auth.getSession().then(({ data }) => {
-      if (!ativo) return;
-      const s = data.session;
-      setSession(s);
-      setUser(s?.user ?? null);
-      setLoading(false);
-      if (s?.user?.email) carregarPerfil(s.user.email);
-    });
+    if (!getToken()) return;
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
-      setSession(s);
-      setUser(s?.user ?? null);
-      setLoading(false);
-      if (s?.user?.email) carregarPerfil(s.user.email);
-      else setPerfil(null);
-    });
+    apiGet<{ usuario: Usuario }>('/api/auth/me')
+      .then((r) => {
+        if (!ativo) return;
+        setUser(r.usuario);
+      })
+      .catch(() => {
+        if (!ativo) return;
+        // O listener global abaixo já limpou a sessão em caso de 401.
+        setUser(null);
+      })
+      .finally(() => {
+        if (ativo) setLoading(false);
+      });
 
     return () => {
       ativo = false;
-      sub.subscription.unsubscribe();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) return { error: traduzirErro(error.message) };
-    return {};
-  };
+  // Qualquer 401 vindo da API derruba a sessão uma única vez.
+  useEffect(() => {
+    const onExpirada = () => setUser(null);
+    window.addEventListener(EVENTO_SESSAO_EXPIRADA, onExpirada);
+    return () => window.removeEventListener(EVENTO_SESSAO_EXPIRADA, onExpirada);
+  }, []);
 
-  const signUp = async (email: string, password: string, nome: string) => {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { full_name: nome } },
-    });
-    if (error) return { error: traduzirErro(error.message) };
+  const signIn = useCallback(async (email: string, senha: string) => {
     try {
-      await fetch('/api/usuarios', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          nome,
-          email,
-          papel: 'Técnico de Laboratório',
-          setor: 'Laboratório de Gestão de Resíduos Perigosos',
-          ativo: true,
-        }),
+      const r = await apiPost<{ token: string; usuario: Usuario }>('/api/auth/login', {
+        email: email.trim(),
+        senha,
       });
-    } catch {
-      /* não bloqueia o cadastro */
+      setSessao(r.token, r.usuario);
+      setUser(r.usuario);
+      return {};
+    } catch (e) {
+      return { error: traduzirErro(e) };
     }
-    return {};
-  };
+  }, []);
 
-  const signOut = async () => {
-    await supabase.auth.signOut();
-    setPerfil(null);
-  };
+  const signUp = useCallback(async (email: string, senha: string, nome: string) => {
+    try {
+      const r = await apiPost<{ token: string; usuario: Usuario; aviso?: string }>(
+        '/api/auth/register',
+        { nome: nome.trim(), email: email.trim(), senha }
+      );
+      setSessao(r.token, r.usuario);
+      setUser(r.usuario);
+      return { aviso: r.aviso };
+    } catch (e) {
+      return { error: traduzirErro(e) };
+    }
+  }, []);
 
-  const papel = perfil?.papel || 'Consultor';
-  const podeEditar = papel !== 'Consultor';
+  const signOut = useCallback(async () => {
+    try {
+      await api('/api/auth', { method: 'DELETE' });
+    } catch {
+      /* encerrar a sessão local é suficiente */
+    }
+    encerrar();
+  }, [encerrar]);
+
+  const papel = user?.papel || 'Consultor';
+  const podeEditar = ['Administrador', 'Coordenador', 'Técnico de Laboratório'].includes(papel);
   const podeGerenciarUsuarios = papel === 'Administrador';
 
   return (
     <AuthContext.Provider
-      value={{
-        user,
-        perfil,
-        session,
-        loading,
-        signIn,
-        signUp,
-        signOut,
-        podeEditar,
-        podeGerenciarUsuarios,
-      }}
+      value={{ user, perfil: user, loading, signIn, signUp, signOut, podeEditar, podeGerenciarUsuarios }}
     >
       {children}
     </AuthContext.Provider>
   );
 }
 
-function traduzirErro(msg: string) {
-  const m = msg.toLowerCase();
-  if (m.includes('invalid login credentials'))
-    return 'E-mail ou senha inválidos. Verifique os dados e tente novamente.';
-  if (m.includes('already registered')) return 'Este e-mail já está cadastrado. Faça login.';
-  if (m.includes('password')) return 'A senha deve ter no mínimo 6 caracteres.';
-  if (m.includes('email')) return 'Informe um endereço de e-mail válido.';
-  if (m.includes('rate limit')) return 'Muitas tentativas. Aguarde alguns instantes.';
-  return msg;
+function traduzirErro(e: unknown): string {
+  if (e instanceof ErroApi) return e.message;
+  if (e instanceof Error) return e.message;
+  return 'Não foi possível concluir a operação.';
 }
 
 export const useAuth = () => useContext(AuthContext);
