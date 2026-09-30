@@ -10,6 +10,7 @@
 import db from './db-client.js';
 import {
   HttpError,
+  ehFalhaDeConexao,
   exigirAuth,
   exigirRateLimit,
   hashSenha,
@@ -28,6 +29,23 @@ function caminho(req) {
   const bruto = req.originalUrl || req.url || '';
   const limpo = bruto.split('?')[0].replace(/\/+$/, '');
   return limpo || '/api/auth';
+}
+
+/**
+ * Converte erro de driver em HttpError. Falha de conexão/credencial vira
+ * 503 (banco fora do ar); qualquer outra coisa — schema incompleto, coluna
+ * faltando — é devolvida crua para o tratador global responder 500 com a
+ * mensagem verdadeira, em vez de mascarar tudo como "banco indisponível".
+ */
+function erroDeBanco(error) {
+  if (ehFalhaDeConexao(error)) {
+    return new HttpError(
+      503,
+      'Não foi possível falar com o banco de dados. Tente novamente em instantes.',
+      'banco_indisponivel'
+    );
+  }
+  return error;
 }
 
 function setCORS(req, res) {
@@ -117,8 +135,10 @@ async function login(req, res) {
     .eq('email', email)
     .limit(1);
   if (error) {
-    console.error('login: falha ao consultar o banco:', error.code || error.message);
-    throw new HttpError(503, 'Não foi possível falar com o banco de dados. Tente em instantes.', 'banco_indisponivel');
+    // Só conexão/secredo recusado vira 503. Erro de schema precisa chegar ao
+    // usuário como 500 com a mensagem real, senão ele investiga a rede à toa.
+    console.error('login: falha ao consultar o banco:', error.code || '', error.message);
+    throw erroDeBanco(error);
   }
 
   const usuario = data && data[0];
@@ -158,8 +178,8 @@ async function registrar(req, res) {
     .select('id, papel')
     .limit(1);
   if (erroBusca) {
-    console.error('register: falha ao consultar o banco:', erroBusca.code || erroBusca.message);
-    throw new HttpError(503, 'Não foi possível falar com o banco de dados. Tente em instantes.', 'banco_indisponivel');
+    console.error('register: falha ao consultar o banco:', erroBusca.code || '', erroBusca.message);
+    throw erroDeBanco(erroBusca);
   }
 
   // O primeiro usuário do sistema precisa poder administrar os demais.
@@ -172,7 +192,10 @@ async function registrar(req, res) {
     .select('id')
     .eq('email', email)
     .limit(1);
-  if (erroDuplicado) throw erroDuplicado;
+  if (erroDuplicado) {
+    console.error('register: falha ao checar e-mail:', erroDuplicado.code || '', erroDuplicado.message);
+    throw erroDeBanco(erroDuplicado);
+  }
   if (jaExiste && jaExiste.length) {
     throw new HttpError(409, 'Este e-mail já está cadastrado. Faça login.', 'email_em_uso');
   }
@@ -189,8 +212,8 @@ async function registrar(req, res) {
     if (error.code === 'ER_DUP_ENTRY') {
       throw new HttpError(409, 'Este e-mail já está cadastrado. Faça login.', 'email_em_uso');
     }
-    console.error('register: falha ao gravar:', error.code || error.message);
-    throw new HttpError(503, 'Não foi possível concluir o cadastro. Tente em instantes.', 'banco_indisponivel');
+    console.error('register: falha ao gravar:', error.code || '', error.message);
+    throw erroDeBanco(error);
   }
 
   await db.from('historico').insert({

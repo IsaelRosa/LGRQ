@@ -16,7 +16,7 @@ import solventes from './api/solventes.js';
 import tratamentos from './api/tratamentos.js';
 import usuarios from './api/usuarios.js';
 import vidrarias from './api/vidrarias.js';
-import { descreverErro, healthCheck, pool } from './api/db-client.js';
+import { descreverErro, diagnosticoConfig, healthCheck, pool } from './api/db-client.js';
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
@@ -79,11 +79,21 @@ app.all(/^\/api\/.+/, (_req, res) => res.status(404).json({ error: 'Rota de API 
 /* ------------------------------------------------------------------ */
 
 app.get('/health', async (_req, res) => {
+  const cfg = diagnosticoConfig();
   try {
     await healthCheck();
     res.status(200).json({ ok: true, banco: 'conectado', uptime: process.uptime() });
   } catch (err) {
-    res.status(503).json({ ok: false, banco: 'indisponivel', erro: descreverErro(err) });
+    console.error('[health] falha ao falar com o MySQL:', err.code || '', descreverErro(err));
+    res.status(503).json({
+      ok: false,
+      banco: 'indisponivel',
+      erro: descreverErro(err),
+      codigo: err.code || null,
+      // Ajuda a separar "banco fora do ar" de "configuração ausente".
+      faltando: cfg.faltando,
+      alvo: cfg.alvo,
+    });
   }
 });
 

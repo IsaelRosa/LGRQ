@@ -29,6 +29,7 @@ const CODIGOS_CONEXAO = new Set([
   'ECONNRESET',
   'ETIMEDOUT',
   'EHOSTUNREACH',
+  'ENETUNREACH',
   'ENOTFOUND',
   'EAI_AGAIN',
   'PROTOCOL_CONNECTION_LOST',
@@ -36,11 +37,25 @@ const CODIGOS_CONEXAO = new Set([
   'ER_BAD_DB_ERROR',
 ]);
 
+/**
+ * Tabela/banco ausentes não são falha de conexão: são schema não importado
+ * ou migração não aplicada. Distinguir os dois evita mandar o usuário
+ * investigar rede quando o problema é outro.
+ */
+const CODIGOS_SCHEMA = new Set([
+  'ER_NO_SUCH_TABLE',
+  'ER_BAD_FIELD_ERROR',
+  'ER_PARSE_ERROR',
+  'ER_NO_SUCH_INDEX',
+]);
+
 function ehFalhaDeConexao(err) {
   if (!err) return false;
   if (err.fatal && err.code) return true;
   return CODIGOS_CONEXAO.has(err.code);
 }
+
+export { ehFalhaDeConexao };
 
 /**
  * Converte qualquer erro em uma resposta JSON coerente.
@@ -60,8 +75,21 @@ export function responderErro(res, err) {
       codigo: 'banco_indisponivel',
     });
   }
+  if (err && CODIGOS_SCHEMA.has(err.code)) {
+    // Schema incompleto é erro de instalação, não de rede — a mensagem precisa
+    // dizer isso, senão o usuário fica caçando problema de conexão à toa.
+    console.error('Schema do banco incompleto:', err.code, err.message);
+    return res.status(500).json({
+      error:
+        'O banco de dados não tem o schema esperado. Importe lgrp_mysql.sql e rode "npm run migrate" (veja o README).',
+      codigo: 'schema_incompleto',
+    });
+  }
   console.error('API error:', err);
-  return res.status(500).json({ error: err.message || 'Erro interno do servidor.' });
+  return res.status(500).json({
+    error: err.message || 'Erro interno do servidor.',
+    codigo: 'erro_interno',
+  });
 }
 
 /* ------------------------------------------------------------------ */

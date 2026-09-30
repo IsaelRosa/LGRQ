@@ -152,7 +152,13 @@ PORT=3000
 | Node.js version      | 20 ou superior    |
 | Application root     | a pasta do projeto|
 | Application startup file | `server.js`   |
+| **Start command**    | `node --env-file=.env server.js` |
 | Application mode     | `production`      |
+
+> **O Start Command precisa carregar o `.env`.** Se ficar apenas `server.js`,
+> o processo não recebe nenhuma variável de ambiente e todo acesso ao banco
+> falha com 503. É a causa mais comum de "o site abre mas o login não
+> funciona". Se preferir, use `npm start`, que já faz isso.
 
 O hPanel instala as dependências e inicia o processo. Recomenda-se manter
 `MYSQL_CONNECTION_LIMIT` baixo (3–5): hospedagem compartilhada tem limite de
@@ -189,13 +195,98 @@ curl https://SEU_DOMINIO/health
 
 ### 8. Checklist
 
+- [ ] **Start Command** = `node --env-file=.env server.js` (ou `npm start`)
 - [ ] `JWT_SECRET` definido e com 32+ caracteres
 - [ ] `.env` **fora** do versionamento (já está no `.gitignore`)
-- [ ] `MYSQL_SSL=false` (o MySQL da Hostinger é local, sem TLS)
+- [ ] `MYSQL_HOST=localhost` e `MYSQL_SSL=false`
+- [ ] Usuário e banco com o prefixo do painel (ex.: `u123456789_lgrp`)
 - [ ] `dist/` gerado e presente no servidor
+- [ ] `npm run migrate` aplicado (para bases antigas)
+- [ ] `npm run check:db` sem pendências
 - [ ] `/health` respondendo `ok: true`
 - [ ] Senha do administrador trocada após o primeiro acesso
 - [ ] `npm run test:e2e` executado contra o banco de produção
+
+---
+
+## Diagnóstico: erros 503 no login
+
+**Sintoma:** o site abre normalmente, mas login e cadastro retornam `503`
+e o console mostra `Failed to load resource: 503`.
+
+O 503 significa que o servidor Node está no ar, mas não conseguiu falar com
+o MySQL. Quatro causas possíveis, em ordem de frequência:
+
+### Causa 1 — o `.env` não chegou ao processo (mais comum)
+
+Se o *Start Command* do hPanel é apenas `server.js`, o processo não recebe
+nenhuma variável e a conexão cai no padrão `localhost`. Confirme consultando
+o health:
+
+```bash
+curl https://SEU_DOMINIO/health
+```
+
+Se `faltando` vier preenchido, é isso:
+
+```json
+{"ok":false,"faltando":["MYSQL_HOST","MYSQL_USER","MYSQL_PASSWORD","MYSQL_DATABASE"]}
+```
+
+### Causa 2 — credenciais do MySQL erradas
+
+Na Hostinger usuário e banco têm prefixo. Confira em
+**hPanel → Bancos de Dados → Gerenciar MySQL** e use exatamente como aparece:
+
+```ini
+MYSQL_HOST=localhost
+MYSQL_PORT=3306
+MYSQL_DATABASE=u123456789_seubanco
+MYSQL_USER=u123456789_seuusuario
+MYSQL_PASSWORD=a_senha_real
+```
+
+`MYSQL_HOST` é `localhost`, nunca o hostname do MySQL do painel.
+
+### Causa 3 — schema não importado ou desatualizado
+
+```bash
+npm run migrate
+```
+
+### Causa 4 — Node.js antigo
+
+`--env-file` existe a partir do Node 20.6. Com Node 18 o processo nem sobe.
+Use a versão 20 ou superior no hPanel.
+
+### Diagnóstico completo
+
+Rode no terminal do servidor (SSH ou console do hPanel):
+
+```bash
+npm run check:db
+```
+
+Testa a conexão, verifica as 10 tabelas, confere a coluna `senha_hash` e
+traduz o código de erro do MySQL em orientação prática:
+
+```
+3. Teste de conexão
+   ✗ Falha: ER_ACCESS_DENIED_ERROR Access denied for user...
+
+O que isso significa:
+   • Usuário ou senha incorretos.
+     Na Hostinger o usuário tem prefixo, ex.: u123456789_admin,
+     e o banco é u123456789_admin_lgrp. Confira em
+     hPanel → Bancos de Dados → Gerenciar MySQL.
+```
+
+A senha nunca é impressa no diagnóstico.
+
+### Depois de corrigir
+
+Reinicie a aplicação no hPanel (Stop → Start). O pool de conexões é criado na
+inicialização do processo e não relê o `.env` sozinho.
 
 ---
 

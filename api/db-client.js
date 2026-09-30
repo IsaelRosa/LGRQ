@@ -487,6 +487,30 @@ export async function healthCheck() {
 }
 
 /**
+ * Resumo da configuração, sem expor segredos.
+ *
+ * A maioria dos 503 em produção não é falha do MySQL: é o `.env` não ter
+ * chegado ao processo (hPanel iniciado sem `--env-file`). Expor quais
+ * variáveis faltam no /health transforma um mistério em um diagnóstico
+ * imediato, e nome de variável não é informação sensível.
+ */
+export function diagnosticoConfig() {
+  const faltando = [];
+  if (!env.MYSQL_HOST && !env.DB_HOST) faltando.push('MYSQL_HOST');
+  if (!env.MYSQL_USER && !env.DB_USER) faltando.push('MYSQL_USER');
+  if (!env.MYSQL_PASSWORD && !env.DB_PASSWORD) faltando.push('MYSQL_PASSWORD');
+  if (!env.MYSQL_DATABASE && !env.DB_NAME) faltando.push('MYSQL_DATABASE');
+  if (!env.JWT_SECRET) faltando.push('JWT_SECRET');
+  return {
+    faltando,
+    // Host e porta ajudam a identificar host/porta errados sem revelar
+    // usuário ou senha.
+    alvo: `${env.MYSQL_HOST || env.DB_HOST || 'localhost'}:${env.MYSQL_PORT || env.DB_PORT || 3306}/${env.MYSQL_DATABASE || env.DB_NAME || '(sem banco)'}`,
+    ssl: env.MYSQL_SSL === 'true',
+  };
+}
+
+/**
  * AggregateError (usado pelo mysql2 quando o host resolve para ::1 e IPv4)
  * não traz mensagem. Esta função garante texto utilizável em logs e no
  * endpoint /health, onde uma mensagem vazia é impossível de diagnosticar.
