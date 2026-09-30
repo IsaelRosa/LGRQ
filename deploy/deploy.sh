@@ -30,7 +30,12 @@ log()  { printf '\n\033[1;32m==>\033[0m %s\n' "$*"; }
 aviso(){ printf '\033[33m    %s\033[0m\n' "$*"; }
 erro() { printf '\n\033[1;31mERRO:\033[0m %s\n' "$*" >&2; exit 1; }
 
-[ "$(id -u)" -eq 0 ] || erro "Rode como root: sudo bash deploy/deploy.sh"
+if [ "$(id -u)" -ne 0 ]; then
+  erro "Este script precisa de root. Rode assim:
+    cd $APP_DIR
+    sudo SITE_DOMAIN=SEU_DOMINIO bash deploy/deploy.sh
+  (na Hostinger o usuário costuma ser u3150..., sem privilégio de root direto)"
+fi
 
 # --------------------------------------------------------------------------
 log "1/5 · Node.js"
@@ -246,12 +251,14 @@ O script não mexe no MySQL. Rode manualmente:
   sudo mysql lgrp < lgrp_mysql.sql
 
   # 3. Ajustar MYSQL_* no .env com a senha escolhida
-  nano /var/www/lgrp/.env
+  sudo nano /var/www/lgrp/.env
 
   # 4. Conferir tudo
-  npm run check:db
-  npm run migrate
+  cd /var/www/lgrp
+  sudo npm run check:db
+  sudo npm run migrate
 
   # 5. Reiniciar
   sudo systemctl restart lgrp
+  curl -i http://127.0.0.1:3000/health
 EOF

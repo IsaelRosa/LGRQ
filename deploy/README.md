@@ -1,7 +1,7 @@
 # Implantação em VPS (Hostinger Cloud Startup)
 
-O plano **Cloud Startup é um VPS**: você tem root, SSH e pode rodar Node.js.
-A tela "Sites → Implantações" do hPanel só constrói e serve **arquivos
+O plano **Cloud Startup é um VPS**: você tem SSH e pode rodar Node.js.
+A tela *Sites → Implantações* do hPanel só constrói e serve **arquivos
 estáticos** — por isso o frontend aparece e `/api/*` responde 503. Nenhum
 servidor Express foi iniciado.
 
@@ -12,26 +12,55 @@ Nginx na frente como proxy reverso.
 
 ## 1. Obter os dados de acesso
 
-No hPanel, em **Servidor / VPS → Gerenciar**, anote:
+No hPanel, em **Avançado → Acesso SSH**, anote:
 
-- **Endereço IP**
-- **Usuário** (normalmente `root`)
-- **Senha root**
-- **Porta SSH** (normalmente 22)
+- **IP**
+- **Porta** (a Hostinger usa uma porta alta, não a 22)
+- **Nome de usuário** (formato `u315093330`, **não** é root)
+- **Senha** (clique em *Alterar* se não souber)
 
-## 2. Instalar o código
+## 2. Conectar
+
+No Windows, abra o **PowerShell** (não precisa instalar PuTTY):
 
 ```bash
-ssh root@SEU_IP
-apt-get update && apt-get install -y git
-git clone https://github.com/IsaelRosa/LGRQ.git /var/www/lgrp
+ssh -p PORTA USUARIO@IP
+```
+
+Exemplo:
+
+```bash
+ssh -p 65002 u315093330@147.93.34.54
+```
+
+Digite a senha quando solicitado. **A senha não aparece enquanto você digita** —
+é normal, o terminal não ecoa nada. Aperte Enter mesmo assim.
+
+Na primeira conexão pode aparecer uma pergunta sobre a autenticidade do host.
+Digite `yes` e Enter.
+
+O prompt fica parecido com:
+
+```
+u315093330@server:~$
+```
+
+> **Este usuário não é root.** Todos os comandos de instalação precisam de
+> `sudo`, e o próprio `sudo` pode pedir a senha novamente.
+
+## 3. Instalar o código
+
+```bash
+sudo apt-get update -y
+sudo apt-get install -y git
+sudo git clone https://github.com/IsaelRosa/LGRQ.git /var/www/lgrp
 cd /var/www/lgrp
 ```
 
-## 3. Rodar a implantação
+## 4. Rodar a implantação
 
 ```bash
-SITE_DOMAIN=mediumorchid-gaur-339159.hostingersite.com bash deploy/deploy.sh
+sudo SITE_DOMAIN=mediumorchid-gaur-339159.hostingersite.com bash deploy/deploy.sh
 ```
 
 Troque pelo seu domínio. O script instala o Node se faltar, compila, cria o
@@ -39,22 +68,24 @@ Troque pelo seu domínio. O script instala o Node se faltar, compila, cria o
 
 É **idempotente** — pode repetir a cada atualização, sem risco.
 
-### Se preferir passo a passo
+Se preferir passo a passo:
 
 ```bash
 node -v                      # precisa ser v20+
-npm install
-npm run build                # gera o dist/
+sudo npm install
+sudo npm run build           # gera o dist/
 
-cp .env.example .env         # e edite
-nano .env
+sudo cp .env.example .env
+sudo nano .env
 
 sudo cp deploy/lgrp.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now lgrp
 ```
 
-## 4. Criar o banco
+## 5. Criar o banco
+
+O script não mexe no MySQL. Rode manualmente:
 
 ```bash
 sudo mysql <<'SQL'
@@ -65,20 +96,22 @@ GRANT ALL PRIVILEGES ON lgrp.* TO 'lgrp_user'@'localhost';
 FLUSH PRIVILEGES;
 SQL
 
-mysql lgrp < lgrp_mysql.sql
+sudo mysql lgrp < lgrp_mysql.sql
 ```
 
-Depois edite o `.env` com **a mesma senha** e reinicie:
+Depois ajuste o `.env` com **a mesma senha** e reinicie:
 
 ```bash
 cd /var/www/lgrp
-nano .env                     # MYSQL_PASSWORD=SENHA_FORTE
-npm run check:db              # diagnostico: tabelas, colunas, credencial
-npm run migrate
+sudo nano .env                # MYSQL_PASSWORD=SENHA_FORTE
+sudo npm run check:db         # diagnostica tabelas, colunas e credencial
+sudo npm run migrate
 sudo systemctl restart lgrp
 ```
 
-## 5. Confirmar
+No `nano`: `Ctrl+O` salva, `Enter` confirma, `Ctrl+X` sai.
+
+## 6. Confirmar
 
 ```bash
 curl -i http://127.0.0.1:3000/health     # app local
@@ -93,13 +126,13 @@ Resposta esperada:
 
 Se aparecer `faltando` ou `codigo`, o `npm run check:db` diz o que corrigir.
 
-## 6. Desligar a implantação estática
+## 7. Desligar a implantação estática
 
-Depois que o Node estiver respondendo, a implantação estática do hPanel deixa
-de ter efeito (o Nginx sobrescreve o vhost). Se quiser evitar que o hPanel
-tente servir o `dist/` de novo, em **Sites**, pause a implantação automática.
+Depois que o Node responde, a implantação estática do hPanel deixa de ter
+efeito — o Nginx assume o vhost. Para ela não tentar publicar o `dist/` de
+novo, em **Sites**, pause a implantação automática.
 
-## 6b. HTTPS
+## 8. HTTPS
 
 ```bash
 sudo apt-get install -y certbot python3-certbot-nginx
@@ -118,8 +151,8 @@ O certificado é emitido em segundos. O sistema já envia o header HSTS quando
 | Ver log | `journalctl -u lgrp -f` |
 | Reiniciar | `sudo systemctl restart lgrp` |
 | Estado | `systemctl status lgrp` |
-| Atualizar código | `cd /var/www/lgrp && git pull && bash deploy/deploy.sh` |
-| Diagnóstico do banco | `cd /var/www/lgrp && npm run check:db` |
+| Atualizar | `cd /var/www/lgrp && sudo git pull && sudo SITE_DOMAIN=SEU_DOMINIO bash deploy/deploy.sh` |
+| Diagnóstico do banco | `cd /var/www/lgrp && sudo npm run check:db` |
 
 Atualizar é sempre o mesmo comando: `git pull` seguido do script. Ele
 recompila, reinicia o serviço e recarrega o Nginx.
@@ -127,26 +160,56 @@ recompila, reinicia o serviço e recarrega o Nginx.
 ## Se algo der errado
 
 **O serviço não sobe**
+
 ```bash
 journalctl -u lgrp -n 40 --no-pager
 ```
-Erros comuns: `Cannot find module` (rode `npm install`); `EADDRINUSE`
-(outra ocupa a porta 3000).
+
+Erros comuns: `Cannot find module` (falta `npm install`); `EADDRINUSE`
+(outro processo ocupa a porta 3000).
+
+**`sudo` pede senha e não aceita**
+
+Digite a senha do usuário SSH — é a mesma. Se der "usuário não está no
+arquivo sudoers", peça ao suporte da Hostinger para liberar sudo, ou
+trabalhe com o usuário root.
 
 **O site continua mostrando a versão estática**
+
 O Nginx não recarregou. Verifique qual servidor está em uso:
 
 ```bash
 systemctl is-active nginx apache2
-nginx -t
+sudo nginx -t
 sudo systemctl reload nginx
 ```
 
 **A porta 3000 está exposta na internet**
-Não deveria: o app escuta em `127.0.0.1` (`HOST` no `.env`). Confira com
-`sudo ss -tlnp | grep 3000` — deve aparecer em `127.0.0.1:3000`, nunca em
-`0.0.0.0:3000`.
 
-**`403 Forbidden` do Nginx**
-O usuário do serviço (`www-data`) não lê a pasta. Verifique as permissões de
-`/var/www/lgrp`, em especial o `.env` (precisa ser `640 root:www-data`).
+Não deveria: o app escuta em `127.0.0.1` (`HOST` no `.env`). Confira com:
+
+```bash
+sudo ss -tlnp | grep 3000
+```
+
+Deve aparecer `127.0.0.1:3000`, nunca `0.0.0.0:3000`.
+
+**403 Forbidden do Nginx**
+
+O usuário do serviço (`www-data`) não lê a pasta. O `.env` deve estar em
+`640 root:www-data`:
+
+```bash
+sudo chown root:www-data /var/www/lgrp/.env
+sudo chmod 640 /var/www/lgrp/.env
+```
+
+**git clone falha por causa da rede**
+
+Tente de novo — às vezes o primeiro acesso ao GitHub é bloqueado por HTTPS
+do VPS:
+
+```bash
+sudo apt-get install -y ca-certificates
+sudo git config --global http.sslVerify true
+```
