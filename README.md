@@ -99,18 +99,57 @@ reproduzindo o mesmo caminho usado em produção.
 
 ---
 
-## Deploy na Hostinger
+## Deploy
+
+### Se você tem um VPS (Hostinger Cloud Startup / Cloud, ou qualquer VPS)
+
+Este é o caminho recomendado: você tem root e SSH, então o backend roda como
+um serviço Node com Nginx na frente.
+
+**Guia completo: [deploy/README.md](deploy/README.md)**
+
+```bash
+git clone https://github.com/IsaelRosa/LGRQ.git /var/www/lgrp
+cd /var/www/lgrp
+SITE_DOMAIN=seu-dominio.com bash deploy/deploy.sh
+```
+
+O script instala o Node se faltar, compila, cria o `.env` com um
+`JWT_SECRET` aleatório, registra o serviço no systemd e configura o proxy.
+É idempotente: rode de novo a cada atualização.
+
+> A tela **Sites → Implantações** do hPanel serve apenas arquivos estáticos.
+> Ela constrói e publica o frontend, mas **não sobe servidor nenhum** — por
+> isso `/api/*` responde 503. Node.js precisa do systemd, como o script faz.
+
+### Se você tem hospedagem compartilhada com suporte a Node.js
+
+Nos planos **Business** e **Enterprise** do hPanel há um construtor de
+aplicações Node.js. Nele:
+
+| Campo                | Valor                                |
+|----------------------|--------------------------------------|
+| Node.js version      | 20 ou superior                       |
+| Application root     | a pasta do projeto                   |
+| Application startup file | `server.js`                      |
+| **Start command**    | `node --env-file=.env server.js`     |
+| Application mode     | `production`                         |
+
+> **O Start Command precisa carregar o `.env`.** Se ficar apenas `server.js`,
+> o processo não recebe nenhuma variável e todo acesso ao banco falha com 503.
+
+Se o seu plano **não** tiver Node.js, o backend precisa ser reescrito em PHP
+ou hospedado em outro serviço (a API já usa CORS e token Bearer, então
+funciona bem em outro domínio).
 
 ### 1. Requisito de plano
 
-O hPanel só executa aplicações Node.js nos planos **Business, Cloud e
-Enterprise**. Na hospedagem compartilhada básica não há Node.js — nesse caso o
-backend precisaria ser reescrito em PHP.
+O backend é Node.js. Ele só roda onde houver runtime Node: VPS com root
+(sempre), ou hospedagem compartilhada dos planos Business/Enterprise.
 
 ### 2. Banco de dados
 
-**hPanel → Bancos de Dados → Gerenciar MySQL.** Crie o banco e anote host,
-usuário, senha e porta. Importe o schema em **phpMyAdmin → Importar →
+Crie o banco e anote host, usuário, senha e porta. Importe o schema:
 `lgrp_mysql.sql`**.
 
 Se o banco já existia com a versão anterior do projeto, rode a migração:
@@ -128,6 +167,7 @@ No **.env** da produção:
 
 ```ini
 NODE_ENV=production
+HOST=127.0.0.1
 MYSQL_HOST=localhost
 MYSQL_PORT=3306
 MYSQL_DATABASE=SEU_BANCO
@@ -142,29 +182,11 @@ PORT=3000
 
 > `JWT_SECRET` é obrigatório em produção. Sem ele o servidor se recusa a
 > subir, porque todas as sessões cairiam a cada reinício.
+>
+> `HOST=127.0.0.1` faz o app escutar apenas em loopback, atrás do proxy. Sem
+> isso a porta fica exposta na internet sem TLS.
 
-### 4. Configuração do Node.js no hPanel
-
-**Advanced → Node.js → Add Node.js App**
-
-| Campo                | Valor             |
-|----------------------|-------------------|
-| Node.js version      | 20 ou superior    |
-| Application root     | a pasta do projeto|
-| Application startup file | `server.js`   |
-| **Start command**    | `node --env-file=.env server.js` |
-| Application mode     | `production`      |
-
-> **O Start Command precisa carregar o `.env`.** Se ficar apenas `server.js`,
-> o processo não recebe nenhuma variável de ambiente e todo acesso ao banco
-> falha com 503. É a causa mais comum de "o site abre mas o login não
-> funciona". Se preferir, use `npm start`, que já faz isso.
-
-O hPanel instala as dependências e inicia o processo. Recomenda-se manter
-`MYSQL_CONNECTION_LIMIT` baixo (3–5): hospedagem compartilhada tem limite de
-conexões simultâneas.
-
-### 5. Build do frontend
+### 4. Build do frontend
 
 O `npm run build` **precisa rodar** — o servidor serve `dist/`, que não é
 versionado. Se o hPanel não executar o build no deploy, rode localmente com as
@@ -174,26 +196,27 @@ mesmas versões de Node e envie o `dist/` junto:
 npm ci && npm run build
 ```
 
-### 6. Primeiro acesso
+### 5. Primeiro acesso
 
 Abra a aplicação e use **Cadastrar**. O primeiro usuário criado recebe
 automaticamente o perfil de **Administrador**; os seguintes entram como
 **Consultor** até serem promovidos.
 
-Para começar com dados de demonstração em vez disso:
+Para começar com dados de demonstração:
 
 ```bash
 npm run seed -- --senha SUA_SENHA
 ```
 
-### 7. Verificação
+### 6. Verificação
 
 ```bash
-curl https://SEU_DOMINIO/health
+curl http://127.0.0.1:3000/health    # app local
+curl https://SEU_DOMINIO/health      # via proxy
 # {"ok":true,"banco":"conectado","uptime":123.4}
 ```
 
-### 8. Checklist
+### 7. Checklist
 
 - [ ] **Start Command** = `node --env-file=.env server.js` (ou `npm start`)
 - [ ] `JWT_SECRET` definido e com 32+ caracteres
@@ -217,7 +240,23 @@ e o console mostra `Failed to load resource: 503`.
 O 503 significa que o servidor Node está no ar, mas não conseguiu falar com
 o MySQL. Quatro causas possíveis, em ordem de frequência:
 
-### Causa 1 — o `.env` não chegou ao processo (mais comum)
+### Causa 0 — nenhum servidor Node está rodando (confirme primeiro)
+
+Se o site abre normalmente mas **todas** as rotas `/api/*` devolvem 503, e
+`/favicon.ico` também, o problema não é banco: **a requisição nem está
+chegando ao Node**. A implantação está servindo só arquivos estáticos.
+
+Como diferenciar:
+
+| Resposta | Origem |
+|----------|--------|
+| JSON com `codigo` | Meu app — banco fora do ar |
+| Página de erro da Hostinger | Servidor — app Node parado |
+
+Confirme em `/health`. Se responder 503 com página HTML, é este o caso: rode
+a implantação de VPS em [deploy/README.md](deploy/README.md).
+
+### Causa 1 — o `.env` não chegou ao processo
 
 Se o *Start Command* do hPanel é apenas `server.js`, o processo não recebe
 nenhuma variável e a conexão cai no padrão `localhost`. Confirme consultando

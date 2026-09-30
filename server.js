@@ -20,6 +20,9 @@ import { descreverErro, diagnosticoConfig, healthCheck, pool } from './api/db-cl
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
+// Atrás de um proxy (Nginx/Apache) o app deve escutar apenas em loopback:
+// em 0.0.0.0 a porta fica exposta na internet sem TLS nem os headers do proxy.
+const host = process.env.HOST || '127.0.0.1';
 const root = path.dirname(fileURLToPath(import.meta.url));
 const isProd = process.env.NODE_ENV === 'production';
 
@@ -150,8 +153,8 @@ app.use((err, _req, res, _next) => {
 /* Ciclo de vida                                                      */
 /* ------------------------------------------------------------------ */
 
-const server = app.listen(port, '0.0.0.0', () => {
-  console.log(`LGRP server listening on port ${port} (${isProd ? 'produção' : 'desenvolvimento'})`);
+const server = app.listen(port, host, () => {
+  console.log(`LGRP server em http://${host}:${port} (${isProd ? 'produção' : 'desenvolvimento'})`);
 });
 
 async function encerrar(sinal) {
