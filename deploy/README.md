@@ -10,6 +10,43 @@ Nginx na frente como proxy reverso.
 
 ---
 
+## Opção A — instalador de comando único (recomendado)
+
+Copie e cole no terminal SSH. Ele faz tudo e só faz duas perguntas.
+
+```bash
+sudo bash -c "$(curl -sSL https://raw.githubusercontent.com/IsaelRosa/LGRQ/main/deploy/instalar.sh)"
+```
+
+O instalador:
+
+1. Pergunta o **domínio** e a **senha do MySQL** (o nome do banco ele deduz)
+2. Instala o Node.js 20+ se faltar
+3. Baixa o código e compila o frontend
+4. Cria o `.env` com um `JWT_SECRET` aleatório
+5. Cria o serviço systemd e configura o Nginx como proxy reverso
+6. Testa tudo e mostra o resultado
+
+Pode rodar de novo com segurança: se o `.env` já existir, o segredo é
+preservado e as sessões continuam válidas.
+
+Depois de instalar, crie sua conta:
+
+```bash
+cd /var/www/lgrp
+sudo npm run admin -- --email SEU_EMAIL --senha SUA_SENHA --nome "Seu Nome"
+```
+
+> **Não cadastre usuário direto pelo phpMyAdmin.** A coluna `senha_hash` precisa
+> guardar o resultado do scrypt (`scrypt$N$r$p$salt$hash`). Com a senha em texto
+> puro a conta é criada mas nunca autentica. Use `npm run admin`.
+
+## Opção B — passo a passo
+
+Use se preferir ver cada etapa, ou se o instalador falhar.
+
+---
+
 ## 1. Obter os dados de acesso
 
 No hPanel, em **Avançado → Acesso SSH**, anote:
@@ -85,7 +122,8 @@ sudo systemctl enable --now lgrp
 
 ## 5. Criar o banco
 
-O script não mexe no MySQL. Rode manualmente:
+Se você já criou o banco no hPanel (Bancos de dados), pule para o
+ajuste do `.env`. Para criar manualmente:
 
 ```bash
 sudo mysql <<'SQL'
@@ -110,6 +148,19 @@ sudo systemctl restart lgrp
 ```
 
 No `nano`: `Ctrl+O` salva, `Enter` confirma, `Ctrl+X` sai.
+
+## 5b. Criar a conta de administrador
+
+```bash
+cd /var/www/lgrp
+sudo npm run admin -- --email isaelrosa@ufla.br --senha "SuaSenhaForte123" --nome "Isael Aparecido Rosa"
+```
+
+O script calcula o hash scrypt, cria ou atualiza a conta e garante o perfil
+**Administrador**. Sem ele, nenhum usuário consegue gerenciar os demais.
+
+Opções: `--email`, `--senha`, `--nome`, `--setor`, `--papel`, `--telefone`,
+`--crq`.
 
 ## 6. Confirmar
 
