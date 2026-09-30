@@ -7,6 +7,12 @@ banco de reagentes, solventes, vidrarias contaminadas e indicadores ambientais.
 
 ---
 
+## Documentação
+
+- **[MANUAL.md](MANUAL.md)** — Manual do usuário: como entrar, perfis de acesso, uso de cada módulo e soluções para problemas comuns.
+
+---
+
 ## Como funciona
 
 ```
