@@ -19,7 +19,8 @@
     "test:e2e": "node --env-file-if-exists=.env test/e2e.mjs",
     "manual:pdf": "node scripts/manual-pdf.mjs",
     "check:db": "node --env-file-if-exists=.env scripts/check-db.mjs",
-    "migrate": "node --env-file-if-exists=.env scripts/migrate.mjs"
+    "migrate": "node --env-file-if-exists=.env scripts/migrate.mjs",
+    "admin": "node --env-file-if-exists=.env scripts/create-admin.mjs"
   },
   "dependencies": {
     "express": "^5.1.0",
