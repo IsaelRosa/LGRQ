@@ -1,0 +1,25 @@
+# LGRP · regras de URL
+#
+# O hPanel publica o frontend estatico. Este arquivo faz o servidor web
+# entregar /api/* ao backend em PHP, em vez de procurar um arquivo.
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # Nao reencaminha o que ja e arquivo ou diretorio existente.
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # /api/qualquer-coisa  ->  api/index.php  (a rota e lida do REQUEST_URI)
+  RewriteRule ^api(/.*)?$ api/index.php [QSA,L]
+</IfModule>
+
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set X-Frame-Options "SAMEORIGIN"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+Options -Indexes
+DirectoryIndex index.html index.php
