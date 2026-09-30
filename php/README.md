@@ -9,24 +9,64 @@ tem PHP 8 e MySQL.
 
 ---
 
+## Instalar em 3 passos
+
+**1.** Envie `instalar.php` e `instalador.dados.php` para a **raiz** do site
+(junto do `index.html`), pela seção *Arquivos* do hPanel.
+
+**2.** Abra no navegador:
+
+```
+https://SEU-DOMINIO/instalar.php
+```
+
+Preencha banco, usuário e senha do MySQL. Clique em **Instalar**.
+
+**3.** Pronto. Ele escreveu os arquivos, criou as tabelas, gerou o `.env`
+com uma chave de sessão aleatória e **se apagou**.
+
+Depois, abra o site e clique em **Cadastrar**. O primeiro usuário vira
+**Administrador** automaticamente.
+
+### Conferir
+
+```
+https://SEU-DOMINIO/api/health
+```
+
+Deve responder `{"ok":true,"banco":"conectado"}`.
+
+## O que o instalador escreve
+
+```
+api/bootstrap.php
+api/core.php
+api/rotas.php
+api/index.php
+.htaccess        (junta as regras às que já existirem)
+.env             (JWT_SECRET aleatório; nunca sobrescreve o existente)
+```
+
+**Não envie `router.php`.** Ele existe só para desenvolvimento: o servidor
+embutido do PHP não lê `.htaccess`, então ele simula o roteamento do Apache.
+Em produção quem roteia é o `.htaccess`, que o instalador cria.
+
 ## O que enviar
+
+Se preferir instalar manualmente, em vez de usar o instalador:
 
 ```
 sua-pasta-do-site/
   .htaccess          <- de php/.htaccess
-  .env               <- novo (veja abaixo)
+  .env               <- novo
   api/
     bootstrap.php    <- de php/api/
     core.php
     index.php
     rotas.php
-  (os arquivos do frontend, já publicados pelo hPanel)
 ```
 
-Ou seja: copie a pasta `php/api` para dentro de `api/`, e o `php/.htaccess`
-para a raiz do site, **ao lado** do `index.html`.
-
-## Arquivo .env na raiz do site
+O `.env` na raiz:
 
 ```ini
 MYSQL_HOST=localhost
@@ -41,7 +81,7 @@ JWT_EXPIRES_IN=12h
 APP_ENV=production
 ```
 
-Para gerar o segredo, abra o **Terminal** do hPanel e rode:
+Para gerar o segredo, no **Terminal** do hPanel:
 
 ```bash
 php -r "echo bin2hex(random_bytes(48)), PHP_EOL;"
@@ -108,7 +148,17 @@ E então o `.htaccess` fica só com a reescrita para `api.php`.
 | `api/core.php` | senhas, JWT, sessão, permissões, auditoria, alertas, CRUD |
 | `api/index.php` | roteador e definição dos módulos |
 | `api/rotas.php` | login, dashboard, indicadores, notificações, histórico, relatórios |
-| `router.php` | **apenas em desenvolvimento** — o servidor embutido do PHP não lê `.htaccess` |
+| `instalar.php` | instalador de página única (enviar e abrir no navegador) |
+| `router.php` | **apenas em desenvolvimento** — o servidor embutido não lê `.htaccess` |
+
+O `instalador.dados.php` é gerado a partir de `php/api/*.php`. Depois de
+alterar o backend, regenere:
+
+```bash
+node scripts/gerar-instalador.mjs
+```
+
+Assim o que vai para o servidor é sempre o código testado, sem cópia manual.
 
 ## Testar localmente
 
