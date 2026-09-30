@@ -16,7 +16,8 @@
     "preview": "vite preview",
     "seed": "node --env-file-if-exists=.env scripts/seed.mjs",
     "test": "node --test \"test/**/*.test.mjs\"",
-    "test:e2e": "node --env-file-if-exists=.env test/e2e.mjs"
+    "test:e2e": "node --env-file-if-exists=.env test/e2e.mjs",
+    "manual:pdf": "node scripts/manual-pdf.mjs"
   },
   "dependencies": {
     "express": "^5.1.0",

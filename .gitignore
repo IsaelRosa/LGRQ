@@ -29,3 +29,6 @@ dist-ssr
 *.sw?
 .vite-source-tags.js
 .vercel
+
+# Perfil temporario do Chrome usado na geracao do PDF
+docs/.chrome-profile/

@@ -10,6 +10,13 @@ banco de reagentes, solventes, vidrarias contaminadas e indicadores ambientais.
 ## Documentação
 
 - **[MANUAL.md](MANUAL.md)** — Manual do usuário: como entrar, perfis de acesso, uso de cada módulo e soluções para problemas comuns.
+- **[docs/MANUAL-LGRP.pdf](docs/MANUAL-LGRP.pdf)** — O mesmo manual em PDF, pronto para distribuição.
+
+Para regerar o PDF após alterar a manual:
+
+```bash
+npm run manual:pdf
+```
 
 ---
 

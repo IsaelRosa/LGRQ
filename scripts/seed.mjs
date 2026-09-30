@@ -109,7 +109,7 @@ async function main() {
   console.log('Inserindo usuários...');
   const senha_hash = await hashSenha(SENHA);
   const usuarios = [
-    { nome: 'Helena Vasconcelos Prado', email: 'helena.prado@universidade.br', papel: 'Administrador', setor: 'Laboratório de Gestão de Resíduos Perigosos', crq: 'CRQ-IV 04352891', telefone: '(11) 3091-6402', ativo: true },
+    { nome: 'Isael Aparecido Rosa', email: 'isael.rosa@universidade.br', papel: 'Administrador', setor: 'Laboratório de Gestão de Resíduos Perigosos', crq: 'CRQ-IV 04352891', telefone: '(11) 3091-6402', ativo: true },
     { nome: 'Ricardo Almeida Nunes', email: 'ricardo.nunes@universidade.br', papel: 'Químico Responsável', setor: 'Central Analítica Multiusuária', crq: 'CRQ-IV 04219873', telefone: '(11) 3091-6418', ativo: true },
     { nome: 'Mariana Costa Ferreira', email: 'mariana.ferreira@universidade.br', papel: 'Gestor Ambiental', setor: 'Pró-Reitoria de Pesquisa', crq: '', telefone: '(11) 3091-6100', ativo: true },
     { nome: 'João Pedro Salgado', email: 'joao.salgado@universidade.br', papel: 'Técnico de Laboratório', setor: 'Lab. de Química Orgânica', crq: 'CRQ-IV 04498120', telefone: '(11) 3091-6455', ativo: true },
@@ -382,7 +382,7 @@ async function main() {
   console.log(`  ${hs.length} registros de auditoria`);
 
   console.log('\nSEED CONCLUÍDO');
-  console.log('Acesso administrador: helena.prado@universidade.br');
+  console.log('Acesso administrador: isael.rosa@universidade.br');
   console.log(`Senha para todos os usuários: ${SENHA}${SENHA_PADRAO ? '  (gerada; defina --senha para escolher)' : ''}`);
 }
 

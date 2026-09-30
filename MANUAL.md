@@ -275,22 +275,23 @@ Toda operação é registrada em nome do usuário. Os dados de resíduos químic
 
 ---
 
-## Apêndice — Acesso de demonstração
+## Apêndice — Contas de demonstração
 
-Estas são as contas criadas pelo seed de demonstração (`npm run seed`). **Todas usam a mesma senha.**
+O seed cria um conjunto de contas fictícias, úteis para **treinamento** antes de usar com dados reais. Todas recebem a senha definida no momento da instalação.
 
-> ⚠️ São dados fictícios, para treinamento e demonstração. **Troque a senha ou apague as contas antes de usar em produção.**
+> ⚠️ São dados fictícios. **Troque a senha e ajuste os e-mails antes de usar em produção.**
 
 | E-mail | Perfil | O que demonstra |
 |--------|--------|------------------|
-| `helena.prado@universidade.br` | Administrador | Acesso total, incluindo gestão de usuários |
+| `isael.rosa@universidade.br` | Administrador | Acesso total, incluindo gestão de usuários |
 | `ricardo.nunes@universidade.br` | Químico Responsável | Tratamentos e destinação |
 | `mariana.ferreira@universidade.br` | Gestor Ambiental | Indicadores e conformidade |
 | `joao.salgado@universidade.br` | Técnico de Laboratório | Registro operacional |
 | `fernando.lima@universidade.br` | Consultor | Somente leitura |
 | `patricia.dias@universidade.br` | Gestor Ambiental | Conta **desativada** — mostra o bloqueio de login |
 
-Para gerar a senha de demonstração com um valor escolhido:
+A senha de cada conta é definida pelo administrador do sistema. Para gerar as
+contas de demonstração com uma senha específica:
 
 ```bash
 npm run seed -- --senha SUA_SENHA

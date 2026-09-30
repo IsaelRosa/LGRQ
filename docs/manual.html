@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8">
+<title>Manual do Usuário — LGRP</title>
+<style>
+  @page { size: A4; margin: 20mm 18mm 18mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+    color: #1c2b26; line-height: 1.6; font-size: 10.5pt;
+    margin: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  h1 { font-size: 24pt; color: #08201a; margin: 0 0 2mm; line-height: 1.15; letter-spacing: -0.02em; }
+  h1 + p { color: #4a6b5f; font-size: 11pt; margin-top: 0; }
+  h2 {
+    font-size: 14pt; color: #08201a; margin: 9mm 0 3mm;
+    padding-bottom: 1.5mm; border-bottom: 2px solid #0d5c3f; letter-spacing: -0.01em;
+    break-after: avoid;
+  }
+  h3 { font-size: 11.5pt; color: #0d5c3f; margin: 6mm 0 2mm; break-after: avoid; }
+  h4 { font-size: 10.5pt; color: #2c4a3f; margin: 4mm 0 1.5mm; break-after: avoid; }
+  p { margin: 0 0 2.5mm; orphans: 2; widows: 2; }
+  ul, ol { margin: 0 0 3mm; padding-left: 6mm; }
+  li { margin-bottom: 1.2mm; }
+  li[data-n="2"] { margin-left: 5mm; }
+  code {
+    background: #eef4f1; color: #0d5c3f; padding: 0.4mm 1.2mm;
+    border-radius: 2px; font-family: "Consolas", monospace; font-size: 9pt;
+  }
+  pre { background: #08201a; color: #e6f2ec; padding: 3mm 4mm; border-radius: 3px; overflow-x: auto; break-inside: avoid; }
+  pre code { background: none; color: inherit; padding: 0; font-size: 8.5pt; }
+  table { width: 100%; border-collapse: collapse; margin: 3mm 0 4mm; font-size: 9pt; break-inside: avoid; }
+  th { background: #0d5c3f; color: #fff; text-align: left; padding: 2mm 2.5mm; font-weight: 600; }
+  td { padding: 1.8mm 2.5mm; border-bottom: 1px solid #dde7e2; vertical-align: top; }
+  tr:nth-child(even) td { background: #f6faf8; }
+  blockquote {
+    margin: 3mm 0; padding: 2.5mm 4mm; background: #fff8e6;
+    border-left: 3px solid #e0a63c; border-radius: 0 3px 3px 0; font-size: 9.5pt;
+  }
+  hr { border: none; border-top: 1px solid #dde7e2; margin: 6mm 0; }
+  .capa {
+    background: linear-gradient(150deg, #08201a, #0d3d2b); color: #fff;
+    padding: 14mm 12mm; border-radius: 4px; margin-bottom: 8mm;
+    break-inside: avoid;
+  }
+  .capa .marca { font-size: 9pt; letter-spacing: 0.2em; text-transform: uppercase; color: #7fd4b0; margin-bottom: 2mm; }
+  .capa h1 { color: #fff; }
+  .capa h1 + p { color: #b9d9cc; }
+  .capa .rodape { margin-top: 6mm; padding-top: 3mm; border-top: 1px solid rgba(255,255,255,0.18); font-size: 8.5pt; color: #9dc4b4; }
+  h2, h3 { break-after: avoid; }
+  table, pre, blockquote { break-inside: avoid; }
+</style></head>
+<body>
+    <div class="capa">
+      <div class="marca">LGRP &middot; Universidade P&uacute;blica Federal</div>
+      <h1>Manual do Usu&aacute;rio</h1>
+      <p>Laborat&oacute;rio de Gest&atilde;o de Res&iacute;duos Perigosos<br>Sistema de Gest&atilde;o de Res&iacute;duos Qu&iacute;micos</p>
+      <div class="rodape">
+        Vers&atilde;o 2.5 &middot; Documento de uso interno<br>
+        Pedidos de coleta &middot; Tratamentos &middot; Solventes &middot; Reagentes &middot; Vidrarias &middot; Indicadores &middot; Rastreabilidade
+      </div>
+    </div><h2>1. Entrando no sistema</h2>
+<p>Abra o endereço do sistema no navegador. Você será levado à tela de login.</p>
+<table><thead><tr><th>Campo</th><th>O que preencher</th></tr></thead><tbody><tr><td><strong>E-mail</strong></td><td>Seu e-mail institucional</td></tr><tr><td><strong>Senha</strong></td><td>A senha definida por você ou pelo administrador</td></tr></tbody></table>
+<p>Clique em <strong>Entrar no sistema</strong>.</p>
+<h3>Primeiro acesso</h3>
+<p>Se ainda não tem conta, clique em <strong>Cadastrar</strong> e preencha nome, e-mail e senha (mínimo 6 caracteres).</p>
+<blockquote><strong>Importante:</strong> o <strong>primeiro usuário</strong> cadastrado no sistema recebe automaticamente o perfil de <strong>Administrador</strong>. Todos os seguintes entram como <strong>Consultor</strong> (somente leitura) e precisam ser promovidos por um administrador.</blockquote>
+<h3>Ao entrar pela primeira vez em um sistema novo</h3>
+<ol>
+<li data-n="1">Faça login com um perfil de Administrador.</li>
+<li data-n="1">Vá em <strong>Usuários</strong> e cadastre os colleagues, definindo uma senha inicial para cada um.</li>
+<li data-n="1">Peça a cada pessoa que troque a senha inicial no primeiro acesso.</li>
+</ol>
+<hr>
+<h2>2. Perfis de acesso e o que cada um pode fazer</h2>
+<table><thead><tr><th>Perfil</th><th>Lê</th><th>Edita</th><th>Gerencia usuários</th></tr></thead><tbody><tr><td><strong>Administrador</strong></td><td>✓</td><td>✓</td><td>✓</td></tr><tr><td><strong>Coordenador</strong></td><td>✓</td><td>✓</td><td>&mdash;</td></tr><tr><td><strong>Químico Responsável</strong></td><td>✓</td><td>✓</td><td>&mdash;</td></tr><tr><td><strong>Gestor Ambiental</strong></td><td>✓</td><td>✓</td><td>&mdash;</td></tr><tr><td><strong>Técnico de Laboratório</strong></td><td>✓</td><td>✓</td><td>&mdash;</td></tr><tr><td><strong>Consultor</strong></td><td>✓</td><td>&mdash;</td><td>&mdash;</td></tr></tbody></table>
+<p><strong>Consultor é somente leitura.</strong> Ele não vê botões de criar, editar ou excluir &mdash; e, mesmo que tente chamar a API diretamente, o servidor recusa a operação. Essa regra é aplicada no servidor, não só na tela.</p>
+<hr>
+<h2>3. Conhecendo o menu</h2>
+<p>Na barra lateral:</p>
+<table><thead><tr><th>Módulo</th><th>Para quê</th></tr></thead><tbody><tr><td><strong>Dashboard</strong></td><td>Visão geral: indicadores, gráficos dos últimos 12 meses, alertas e atividade recente</td></tr><tr><td><strong>Pedidos &amp; Coletas</strong></td><td>Solicitações de coleta e os registros de coleta efetuadas</td></tr><tr><td><strong>Tratamento de Resíduos</strong></td><td>Métodos de tratamento, eficiência, custos e destinação final</td></tr><tr><td><strong>Controle de Solventes</strong></td><td>Estoque, volume restante e recuperação</td></tr><tr><td><strong>Banco de Reagentes</strong></td><td>Validade, lote e classe de risco</td></tr><tr><td><strong>Vidrarias Contaminadas</strong></td><td>Descontaminação e reaproveitamento</td></tr><tr><td><strong>Indicadores Mensais</strong></td><td>Série histórica e metas mensais</td></tr><tr><td><strong>Relatórios</strong></td><td>Gerador personalizável com exportação</td></tr><tr><td><strong>Rastreabilidade</strong></td><td>Trilha de auditoria completa</td></tr><tr><td><strong>Notificações</strong></td><td>Central de alertas</td></tr><tr><td><strong>Usuários</strong></td><td>Perfis e permissões (só administradores)</td></tr></tbody></table>
+<p><strong>Busca rápida:</strong> o campo no topo da barra lateral localiza um módulo pelo nome ou por palavra-chave. Digite "vencido" e ele encontra o Banco de Reagentes; digite "MTR" e ele encontra Pedidos &amp; Coletas.</p>
+<hr>
+<h2>4. Como usar qualquer módulo de cadastro</h2>
+<p>Todos os módulos de registro (Pedidos, Tratamentos, Solventes, Reagentes, Vidrarias, Usuários) funcionam da mesma forma.</p>
+<h3>Localizar um registro</h3>
+<ul>
+<li data-n="1"><strong>Buscar</strong> &mdash; digite no campo de busca. A busca cobre todos os campos relevantes do módulo (código, nome, laboratório, e assim por diante).</li>
+<li data-n="1"><strong>Filtrar</strong> &mdash; use os seletores acima da tabela para restringir por status, período, prioridade, laboratório.</li>
+<li data-n="1"><strong>Limpar filtros</strong> &mdash; clique em <strong>Limpar</strong> para voltar a ver tudo.</li>
+</ul>
+<h3>Criar</h3>
+<ol>
+<li data-n="1">Clique em <strong>Novo registro</strong> (canto superior direito).</li>
+<li data-n="1">Preencha o formulário. Os campos com <strong>asterisco</strong> são obrigatórios.</li>
+<li data-n="1">Clique em <strong>Salvar</strong>.</li>
+</ol>
+<p>Nos pedidos, tratamentos, solventes, reagentes e vidrarias o <strong>código é gerado automaticamente</strong> (ex.: <code>PED-2026-0001</code>) &mdash; você não precisa digitar.</p>
+<h3>Editar</h3>
+<p>Clique no ícone de <strong>lápis</strong> na linha desejada. As mudanças ficam registradas na trilha de auditoria.</p>
+<h3>Excluir</h3>
+<p>Clique no ícone de <strong>lixeira</strong>. O sistema pede confirmação &mdash; a exclusão é definitiva e não pode ser desfeita pela interface.</p>
+<blockquote><strong>Antes de excluir</strong>, prefira alterar o <strong>status</strong> quando o registro ainda faz sentido no histórico. Excluir um pedido já destinado apaga a evidência de que o resíduo foi corretamente destinado.</blockquote>
+<h3>Exportar</h3>
+<p>O botão <strong>Exportar CSV</strong> gera uma planilha com os dados <strong>já filtrados</strong> &mdash; se você filtrou por período e status, o CSV respeita isso. Útil para alimentar relatórios e prestações de contas.</p>
+<hr>
+<h2>5. Os módulos em detalhe</h2>
+<h3>Pedidos &amp; Coletas</h3>
+<p>O <strong>Pedido de Coleta</strong> é a solicitação feita pelo laboratório gerador. O fluxo de status é:</p>
+<pre><code>
+Solicitado → Agendado → Coletado → Em Tratamento → Destinado
+                                    (ou Cancelado, a qualquer momento)
+</code></pre>
+<ul>
+<li data-n="1"><strong>Prioridade</strong> &mdash; Baixa, Média, Alta ou <strong>Crítica</strong>. Pedidos críticos em tratamento geram alerta automático.</li>
+<li data-n="1"><strong>Unidade</strong> &mdash; kg, L ou unidades (un). Define como a quantidade é interpretada e somada nos indicadores.</li>
+<li data-n="1"><strong>MTR</strong> &mdash; o número do Manifesto de Transporte de Resíduos, gerado na <strong>Coleta</strong> correspondente.</li>
+</ul>
+<p>Ao registrar uma <strong>Coleta</strong> vinculada a um pedido, o sistema preenche o laboratório, o tipo de resíduo e o peso automaticamente a partir do pedido.</p>
+<p><strong>Destino correto:</strong> o indicador de rastreabilidade compara pedidos encerrados (Destinado/Cancelado) com os efetivamente destinados. Quanto mais alto o percentual, melhor a conformidade.</p>
+<h3>Tratamento de Resíduos</h3>
+<p>Registra o processo de tratamento e a destinação final.</p>
+<ul>
+<li data-n="1"><strong>Método</strong> &mdash; Incineração, Neutralização Ácido-Base, Destilação/Recuperação, Precipitação, Oxidação, Encapsulamento, Coprocessamento, Aterro Classe I, Autoclavagem.</li>
+<li data-n="1"><strong>Quantidade de saída</strong> e <strong>eficiência</strong> &mdash; só se aplicam a tratamentos concluídos.</li>
+<li data-n="1"><strong>CDF</strong> &mdash; o Certificado de Destinação Final, para tratamentos concluídos em que o resíduo foi para destinação externa.</li>
+<li data-n="1">Ao concluir um tratamento com método <strong>Destilação</strong>, o volume recuperado entra automaticamente nos indicadores de solventes recuperados.</li>
+</ul>
+<h3>Controle de Solventes</h3>
+<p>Acompanha o estoque e calcula a situação de cada solvente:</p>
+<table><thead><tr><th>Situação</th><th>Quando aparece</th></tr></thead><tbody><tr><td><strong>Vencido</strong></td><td>Validade expirada</td></tr><tr><td><strong>A vencer</strong></td><td>Vence em até 30 dias</td></tr><tr><td><strong>Estoque baixo</strong></td><td>Restam 15% ou menos do volume total</td></tr><tr><td><strong>Esgotado</strong></td><td>Volume restante zerado</td></tr><tr><td><strong>Regular</strong></td><td>Dentro do esperado</td></tr></tbody></table>
+<h3>Banco de Reagentes</h3>
+<p>Idem para reagentes, com alerta automático para <strong>vencidos</strong> e <strong>a vencer em até 30 dias</strong>. Reagente vencido deve ser <strong>segregado e encaminhado para coleta</strong> &mdash; atualize o status para "Segregado para Coleta" e abra um pedido.</p>
+<h3>Vidrarias Contaminadas</h3>
+<p>Controla o ciclo de descontaminação: Aguardando → Em Descontaminação → Descontaminada / Reaproveitada / Descartada.</p>
+<p>Vidraria <strong>Aguardando Descontaminação</strong> com nível de contaminação <strong>Crítico</strong> gera alerta automático.</p>
+<h3>Indicadores Mensais</h3>
+<p>Consolida mês a mês: pedidos recebidos, coletas realizadas, kg/L coletados e tratados, reagentes vencidos, vidrarias descontaminadas, percentual de destinação correta, custo total, acidentes e treinamentos.</p>
+<p>A maior parte é <strong>calculada automaticamente</strong> a partir dos registros. Você só lança manualmente o que o sistema não consegue deduzir:</p>
+<ul>
+<li data-n="1"><strong>Acidentes</strong> do mês</li>
+<li data-n="1"><strong>Treinamentos</strong> realizados</li>
+<li data-n="1"><strong>Custo operacional</strong> (mão de obra, insumos)</li>
+<li data-n="1"><strong>Destinação correta (%)</strong> &mdash; se você tiver o dado oficial, ele sobrescreve o cálculo automático</li>
+<li data-n="1"><strong>Observações</strong></li>
+</ul>
+<h3>Notificações</h3>
+<p>A central de alertas. Os avisos são gerados por regras automáticas a cada 5 minutos:</p>
+<table><thead><tr><th>Tipo</th><th>Severidade</th><th>Dispara quando</th></tr></thead><tbody><tr><td>Reagente vencido</td><td>crítica</td><td>Validade passou</td></tr><tr><td>Reagente a vencer</td><td>aviso</td><td>Vence em até 30 dias</td></tr><tr><td>Solvente vencido</td><td>crítica</td><td>Validade passou</td></tr><tr><td>Estoque baixo</td><td>aviso</td><td>Restam ≤ 15%</td></tr><tr><td>Coleta atrasada</td><td>crítica</td><td>Data prevista passou com pedido aberto</td></tr><tr><td>Pedido pendente</td><td>aviso</td><td>Mais de 7 dias sem agendamento</td></tr><tr><td>Prioridade crítica</td><td>aviso</td><td>Pedido crítico em tratamento</td></tr><tr><td>Contaminação crítica</td><td>crítica</td><td>Vidraria crítica aguardando</td></tr><tr><td>Tratamento prolongado</td><td>aviso</td><td>Mais de 30 dias em andamento</td></tr></tbody></table>
+<p>Você pode <strong>marcar como lida</strong>, <strong>marcar todas como lidas</strong> e <strong>excluir as lidas</strong>. Alertas já notificados não são duplicados.</p>
+<p>Também é possível registrar comunicados manuais (aviso de manutenção, mudança de procedimento).</p>
+<h3>Rastreabilidade</h3>
+<p>Toda operação &mdash; criação, alteração, exclusão &mdash; fica registrada com <strong>quem</strong>, <strong>quando</strong>, <strong>o que era</strong> e <strong>o que passou a ser</strong>.</p>
+<p>Use os filtros por módulo, ação, usuário, registro e período. O botão <strong>Exportar auditoria</strong> gera o CSV para apresentação institucional ou auditoria externa.</p>
+<blockquote>Este registro <strong>não pode ser apagado pela interface</strong> &mdash; é a memória do sistema.</blockquote>
+<h3>Relatórios</h3>
+<p>Monte o relatório escolhendo:</p>
+<ul>
+<li data-n="1"><strong>Módulos</strong> &mdash; combine pedidos, coletas, tratamentos, solventes, reagentes e vidrarias</li>
+<li data-n="1"><strong>Período</strong> &mdash; data inicial e final</li>
+<li data-n="1"><strong>Agrupamento</strong> &mdash; por laboratório, status, método, categoria, nível de risco, etc.</li>
+<li data-n="1"><strong>Colunas</strong> &mdash; marque as que quiser ver</li>
+</ul>
+<p>O painel de resumo mostra o total de registros e as somas das quantidades. <strong>Exportar CSV</strong> baixa tudo que está filtrado.</p>
+<h3>Usuários</h3>
+<p>Visível e editável apenas por <strong>Administradores</strong>.</p>
+<p>Ao cadastrar alguém, <strong>defina uma senha inicial</strong> &mdash; ela é obrigatória. Ao alterar o e-mail de um usuário, o sistema exige uma nova senha junto, porque o e-mail é a chave de login.</p>
+<p><strong>Proteções ativas:</strong></p>
+<ul>
+<li data-n="1">Não é possível rebaixar ou desativar o último administrador ativo do sistema</li>
+<li data-n="1">Não é possível desativar ou rebaixar a própria conta</li>
+<li data-n="1"><strong>Desativar</strong> um usuário bloqueia o login dele; os dados que ele criou continuam na trilha de auditoria</li>
+</ul>
+<hr>
+<h2>6. Dicas de uso</h2>
+<ul>
+<li data-n="1"><strong>Comece pelos pedidos.</strong> Tudo o mais se articula em torno deles: coletas, tratamentos e indicadores derivam dos pedidos.</li>
+<li data-n="1"><strong>Mantenha os status atualizados.</strong> O motor de alertas e os indicadores dependem disso. Pedido que fica em "Solicitado" para de aparecer como pendência.</li>
+<li data-n="1"><strong>Use a busca antes de criar.</strong> Evita cadastro duplicado, que atrapalha a contagem.</li>
+<li data-n="1"><strong>Registre a coleta com MTR.</strong> É o documento que comprova o transporte legal do resíduo.</li>
+<li data-n="1"><strong>Exporte CSV com frequência.</strong> Os dados estão no banco, mas o CSV é o que você apresenta.</li>
+<li data-n="1"><strong>Não compartilhe a senha.</strong> Cada pessoa deve ter a própria conta: é o que dá rastreabilidade.</li>
+</ul>
+<hr>
+<h2>7. Problemas comuns</h2>
+<p><strong>Esqueci minha senha</strong></p>
+<p>Fale com o administrador. Ele redefine pelo módulo <strong>Usuários</strong>. A senha antiga deixa de funcionar imediatamente.</p>
+<p><strong>Aparece "Sessão expirada"</strong></p>
+<p>A sessão dura 12 horas por padrão e é encerrada ao fechar. Entre novamente com e-mail e senha.</p>
+<p><strong>Aparece "Sua conta está inativa"</strong></p>
+<p>Seu usuário foi desativado por um administrador. Procure o responsável pelo LGRP.</p>
+<p><strong>Aparece "Acesso somente leitura"</strong></p>
+<p>Seu perfil é Consultor. Peça a um administrador para alterá-lo em <strong>Usuários</strong>.</p>
+<p><strong>Meu navegador voltou sozinho para a tela de login</strong></p>
+<p>Sessão expirada, ou o servidor foi reiniciado e a chave de assinatura mudou. Entre novamente.</p>
+<p><strong>Aparece "Não foi possível falar com o banco de dados"</strong></p>
+<p>O servidor está sem conexão com o MySQL. Isso é caso do suporte de TI &mdash; tente novamente em alguns minutos.</p>
+<p><strong>Só consigo ler, os botões sumiram</strong></p>
+<p>Esperado para Consultor. Confirme seu perfil com um administrador.</p>
+<p><strong>Um alerta não apareceu</strong></p>
+<p>Os alertas são recalculados a cada 5 minutos. Se os dados foram alterados nesse intervalo, o novo alerta entra no próximo ciclo. Alertas já existentes não são duplicados.</p>
+<hr>
+<h2>8. Requisitos e privacidade</h2>
+<ul>
+<li data-n="1">Navegador atualizado (Chrome, Edge ou Firefox recentes)</li>
+<li data-n="1">Conexão com a internet &mdash; o sistema é acessado pelo endereço da instituição</li>
+<li data-n="1">A sessão é guardada <strong>no seu navegador</strong>. Em computador compartilhado, <strong>encerre a sessão</strong> ao terminar</li>
+</ul>
+<p>Toda operação é registrada em nome do usuário. Os dados de resíduos químicos, solventes e reagentes são informações institucionais sensíveis: <strong>não compartilhe capturas de tela ou relatórios fora dos canais oficiais</strong>.</p>
+<hr>
+<h2>9. Encaminhamentos</h2>
+<table><thead><tr><th>Assunto</th><th>Para quem</th></tr></thead><tbody><tr><td>Acesso, permissões, senha</td><td>Administrador do LGRP</td></tr><tr><td>Problema de conexão / sistema fora do ar</td><td>Suporte de TI</td></tr><tr><td>Dúvida sobre classificação de resíduo</td><td>Responsável técnico pelo LGRP</td></tr><tr><td>Correção de dado já registrado</td><td>Administrador (com registro em auditoria)</td></tr></tbody></table>
+<hr>
+<h2>Apêndice &mdash; Contas de demonstração</h2>
+<p>O seed cria um conjunto de contas fictícias, úteis para <strong>treinamento</strong> antes de usar com dados reais. Todas recebem a senha definida no momento da instalação.</p>
+<blockquote>⚠️ São dados fictícios. <strong>Troque a senha e ajuste os e-mails antes de usar em produção.</strong></blockquote>
+<table><thead><tr><th>E-mail</th><th>Perfil</th><th>O que demonstra</th></tr></thead><tbody><tr><td><code>isael.rosa@universidade.br</code></td><td>Administrador</td><td>Acesso total, incluindo gestão de usuários</td></tr><tr><td><code>ricardo.nunes@universidade.br</code></td><td>Químico Responsável</td><td>Tratamentos e destinação</td></tr><tr><td><code>mariana.ferreira@universidade.br</code></td><td>Gestor Ambiental</td><td>Indicadores e conformidade</td></tr><tr><td><code>joao.salgado@universidade.br</code></td><td>Técnico de Laboratório</td><td>Registro operacional</td></tr><tr><td><code>fernando.lima@universidade.br</code></td><td>Consultor</td><td>Somente leitura</td></tr><tr><td><code>patricia.dias@universidade.br</code></td><td>Gestor Ambiental</td><td>Conta <strong>desativada</strong> &mdash; mostra o bloqueio de login</td></tr></tbody></table>
+<p>A senha de cada conta é definida pelo administrador do sistema. Para gerar as</p>
+<p>contas de demonstração com uma senha específica:</p>
+<pre><code>
+npm run seed -- --senha SUA_SENHA
+</code></pre>
+<p>Para começar do zero, sem os dados de exemplo: use <strong>Cadastrar</strong> na tela de login. O primeiro usuário cadastrado vira Administrador.</p></body></html>
