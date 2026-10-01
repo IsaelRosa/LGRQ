@@ -1,0 +1,97 @@
+name: Deploy
+
+# A cada push na main, compila o frontend e envia para o public_html da
+# Hostinger. O backend em PHP vai junto: sozinho, o botao "Implantacoes" do
+# hPanel publica apenas os arquivos estaticos e /api/* responde 503.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci --no-audit --no-fund
+
+      - name: Compilar o frontend
+        run: npm run build
+
+      # Monta o que sera enviado num diretorio so, para que o rsync-tenha uma
+      # unica raiz. O .htaccess entra aqui; o .env NAO entra de proposito.
+      - name: Montar o pacote de publicacao
+        run: |
+          set -euo pipefail
+          rm -rf .publicacao
+          mkdir -p .publicacao/api
+
+          cp -r dist/. .publicacao/
+          cp php/api/*.php .publicacao/api/
+          cp php/.htaccess .publicacao/.htaccess
+
+          echo "--- conteudo do pacote ---"
+          find .publicacao -maxdepth 2 -type f | sort
+
+      - name: Preparar chave SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "$DEPLOY_SSH_KEY" ]; then
+            echo "::error::Segredo DEPLOY_SSH_KEY nao configurado."
+            exit 1
+          fi
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -p 65002 -H 147.93.34.54 >> ~/.ssh/known_hosts 2>/dev/null
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Enviar para a Hostinger
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          set -euo pipefail
+          rsync -az --delete \
+            --exclude '.env' \
+            --exclude '.env.*' \
+            -e "ssh -p 65002 -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=accept-new" \
+            .publicacao/ "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/"
+
+      - name: Conferir a API
+        env:
+          DEPLOY_URL: ${{ secrets.DEPLOY_PUBLIC_URL }}
+        run: |
+          set -uo pipefail
+          echo "Aguardando o backend responder..."
+          for i in $(seq 1 10); do
+            code=$(curl -s -o /tmp/health.txt -w '%{http_code}' "${DEPLOY_URL}/api/health" || true)
+            echo "tentativa ${i}: HTTP ${code}"
+            if [ "$code" = "200" ]; then
+              echo "::notice::API no ar: $(cat /tmp/health.txt)"
+              exit 0
+            fi
+            sleep 6
+          done
+          echo "::warning::A API ainda nao respondeu 200. Resposta:"
+          cat /tmp/health.txt || true
+          echo ""
+          echo "Se a resposta for 503 com pagina HTML do servidor, o handler de"
+          echo "PHP nao esta configurado no hPanel (Advanced > PHP Configuration)."
+          exit 1

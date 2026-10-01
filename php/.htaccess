@@ -13,6 +13,12 @@
 
   # /api/qualquer-coisa  ->  api/index.php  (a rota e lida do REQUEST_URI)
   RewriteRule ^api(/.*)?$ api/index.php [QSA,L]
+
+  # Rotas do SPA (/login, /pedidos, ...)  ->  index.html. Sem isto o usuario
+  # que abre o site por um link direto recebe 404 do servidor.
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule . /index.html [L]
 </IfModule>
 
 <IfModule mod_headers.c>
