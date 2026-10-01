@@ -12,7 +12,7 @@ import {
   Trash2,
   Truck,
 } from 'lucide-react';
-import { apiGet } from '../lib/api';
+import { apiGet, apiPost } from '../lib/api';
 import {
   fmtData,
   fmtDataHora,
@@ -208,26 +208,13 @@ export default function Pedidos() {
         await update({ ...payload, id: editando.id });
         toast('sucesso', 'Pedido atualizado', `${editando.codigo} foi alterado com sucesso.`);
       } else {
-        const r: any = await apiPostLocal(payload);
+        const r: any = await apiPost('/api/pedidos', payload);
         toast('sucesso', 'Pedido registrado', `Código gerado: ${r?.codigo || '—'}`);
       }
       setModalAberto(false);
     } catch (e: any) {
       toast('erro', 'Erro ao salvar', e?.message);
     }
-  }
-
-  async function apiPostLocal(payload: any) {
-    const res = await fetch('/api/pedidos', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) {
-      const j = await res.json().catch(() => ({}));
-      throw new Error(j?.error || 'Falha ao criar o pedido.');
-    }
-    return res.json();
   }
 
   async function confirmarExclusao() {
