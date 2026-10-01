@@ -49,17 +49,42 @@ jobs:
       - name: Preparar chave SSH
         env:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
         run: |
           set -euo pipefail
           if [ -z "$DEPLOY_SSH_KEY" ]; then
             echo "::error::Segredo DEPLOY_SSH_KEY nao configurado."
             exit 1
           fi
+          if [ -z "$DEPLOY_HOST" ]; then
+            echo "::error::Segredo DEPLOY_HOST nao configurado."
+            exit 1
+          fi
           mkdir -p ~/.ssh
           printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -p 65002 -H 147.93.34.54 >> ~/.ssh/known_hosts 2>/dev/null
+          ssh-keygen -y -f ~/.ssh/id_ed25519 > /tmp/deploy-key.pub
+          ssh-keyscan -p 65002 -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null
           chmod 600 ~/.ssh/known_hosts
+
+      - name: Validar acesso SSH
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          set -euo pipefail
+          if [ -z "$DEPLOY_USER" ]; then
+            echo "::error::Segredo DEPLOY_USER nao configurado."
+            exit 1
+          fi
+          ssh \
+            -p 65002 \
+            -i ~/.ssh/id_ed25519 \
+            -o IdentitiesOnly=yes \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes \
+            "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            'printf "SSH authentication succeeded\\n"'
 
       - name: Enviar para a Hostinger
         env:
@@ -71,7 +96,7 @@ jobs:
           rsync -az --delete \
             --exclude '.env' \
             --exclude '.env.*' \
-            -e "ssh -p 65002 -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=accept-new" \
+            -e "ssh -p 65002 -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes" \
             .publicacao/ "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/"
 
       - name: Conferir a API
